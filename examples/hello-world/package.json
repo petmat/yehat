@@ -1,0 +1,15 @@
+{
+  "name": "yehat-example-hello-world",
+  "version": "1.0.0",
+  "description": "Yehat Hello World example",
+  "main": "index.js",
+  "author": "Matti Petrelius",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn parcel src/index.html"
+  },
+  "devDependencies": {
+    "parcel": "^2.2.1",
+    "yehat": "0.0.1"
+  }
+}
