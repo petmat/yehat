@@ -6,4 +6,5 @@ export const Colors = {
   Red: [1.0, 0.0, 0.0, 1.0] as Color,
   Green: [0.0, 1.0, 0.0, 1.0] as Color,
   Blue: [0.0, 0.0, 1.0, 1.0] as Color,
+  Yellow: [1.0, 1.0, 0.0, 1.0] as Color,
 } as const;

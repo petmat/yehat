@@ -12,6 +12,10 @@ export type Color = [red: number, green: number, blue: number, alpha: number];
 
 export type Vector2 = [x: number, y: number];
 
+export type Triangle = [a: Vector2, b: Vector2, c: Vector2];
+
+export type TriangleColor = [a: Color, b: Color, c: Color];
+
 export type Rectangle = [
   topLeft: Vector2,
   topRight: Vector2,
@@ -35,9 +39,16 @@ export interface InitializeContextOptions {
   zFar: number;
 }
 
-export interface EngineContext {
-  drawRectangle: (rec: Rectangle, color: Color | RectangleColor) => void;
-  renderScene: () => void;
+export interface SceneContext {
+  createTriangle: (triangle: Triangle, color: Color | TriangleColor) => void;
+  createRectangle: (rec: Rectangle, color: Color | RectangleColor) => void;
+  createCircle: (
+    center: Vector2,
+    radius: number,
+    resolution: number,
+    color: Color
+  ) => void;
+  drawScene: () => void;
 }
 
 interface ShaderProgramInfo {
@@ -53,6 +64,8 @@ interface ShaderProgramInfo {
 }
 
 export interface GameObject {
+  vertexCount: number;
+  drawMode: number;
   position: WebGLBuffer;
   color: WebGLBuffer;
 }
@@ -211,6 +224,8 @@ const initializeColorBuffer = (
 };
 
 const initializeBuffers = (
+  vertexCount: number,
+  drawMode: number,
   positions: number[],
   colors: number[],
   gl: WebGLRenderingContext
@@ -219,6 +234,8 @@ const initializeBuffers = (
   const color = initializeColorBuffer(colors, gl);
 
   return {
+    vertexCount,
+    drawMode,
     position,
     color,
   };
@@ -286,7 +303,7 @@ const setShaderUniforms = (
   );
 };
 
-const renderGameObject = (
+const drawGameObject = (
   gameObject: GameObject,
   programInfo: ShaderProgramInfo,
   projectionMatrix: mat4,
@@ -301,38 +318,89 @@ const renderGameObject = (
   setShaderUniforms(programInfo, projectionMatrix, modelViewMatrix, gl);
 
   const offset = 0;
-  const vertexCount = 4;
-  gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+  gl.drawArrays(gameObject.drawMode, offset, gameObject.vertexCount);
 };
 
-const isColorArray = (
-  color: Color | RectangleColor
-): color is RectangleColor => {
-  return color.some((c) => Array.isArray(c));
+const isSingleColor = <TMultiColor extends Color[]>(
+  color: Color | TMultiColor
+): color is Color => {
+  return !color.some((c) => Array.isArray(c));
 };
 
 export const initializeScene = (
   options: InitializeContextOptions,
   gl: WebGLRenderingContext
-): EngineContext => {
+): SceneContext => {
   initializeDepth(options, gl);
   const projectionMatrix = initializeProjectionMatrix(options);
   const modelViewMatrix = initializeModelViewMatrix();
   const programInfo = initializeShaderProgram(gl);
   const gameObjects: GameObject[] = [];
 
-  const drawRectangle = (rec: Rectangle, color: Color | RectangleColor) => {
-    const positions = rec.flat();
-    const colors = isColorArray(color)
-      ? color.flat()
-      : [...color, ...color, ...color, ...color];
-    const buffers = initializeBuffers(positions, colors, gl);
+  const createTriangle = (triangle: Triangle, color: Color | TriangleColor) => {
+    const positions = triangle.flat();
+    const colors = isSingleColor(color)
+      ? [...color, ...color, ...color, ...color]
+      : color.flat();
+    const buffers = initializeBuffers(
+      3,
+      gl.TRIANGLE_STRIP,
+      positions,
+      colors,
+      gl
+    );
     gameObjects.push(buffers);
   };
 
-  const renderScene = () => {
+  const createRectangle = (rec: Rectangle, color: Color | RectangleColor) => {
+    const positions = rec.flat();
+    const colors = isSingleColor(color)
+      ? [...color, ...color, ...color, ...color]
+      : color.flat();
+    const buffers = initializeBuffers(
+      4,
+      gl.TRIANGLE_STRIP,
+      positions,
+      colors,
+      gl
+    );
+    gameObjects.push(buffers);
+  };
+
+  const createCircle = (
+    center: Vector2,
+    radius: number,
+    resolution: number,
+    color: Color
+  ) => {
+    const positions = [...center];
+
+    const stops = resolution;
+
+    for (let i = 0; i <= stops; i++) {
+      positions.push(Math.cos((i * 2 * Math.PI) / stops) * radius + center[0]); // x coord
+      positions.push(Math.sin((i * 2 * Math.PI) / stops) * radius + center[1]); // y coord
+    }
+
+    const colors = [...color];
+
+    for (let i = 0; i <= stops; i++) {
+      colors.push(...color);
+    }
+
+    const buffers = initializeBuffers(
+      stops + 2,
+      gl.TRIANGLE_FAN,
+      positions,
+      colors,
+      gl
+    );
+    gameObjects.push(buffers);
+  };
+
+  const drawScene = () => {
     for (const gameObject of gameObjects) {
-      renderGameObject(
+      drawGameObject(
         gameObject,
         programInfo,
         projectionMatrix,
@@ -343,8 +411,10 @@ export const initializeScene = (
   };
 
   return {
-    drawRectangle,
-    renderScene,
+    createRectangle,
+    createTriangle,
+    createCircle,
+    drawScene,
   };
 };
 
