@@ -1,4 +1,4 @@
-import { clear, getWebGLContext, initializeScene } from "yehat";
+import { Colors, clear, getWebGLContext, initializeScene } from "yehat";
 
 const main = () => {
   const canvas = document.querySelector("#glCanvas");
@@ -15,7 +15,7 @@ const main = () => {
     gl
   );
 
-  clear([0.0, 0.0, 0.0, 1.0], 1.0, gl);
+  clear(Colors.Black, 1.0, gl);
 
   drawRectangle(
     [
@@ -24,7 +24,7 @@ const main = () => {
       [1.0, -1.0],
       [-1.0, -1.0],
     ],
-    [1.0, 1.0, 1.0, 1.0]
+    [Colors.White, Colors.Red, Colors.Green, Colors.Blue]
   );
 
   renderScene();

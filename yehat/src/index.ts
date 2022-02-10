@@ -3,6 +3,8 @@ import { mat4 } from "gl-matrix";
 import { fsSource } from "./shaders/fragmentShader";
 import { vsSource } from "./shaders/vertexShader";
 
+export * from "./constants";
+
 const isCanvasElement = (el: Element): el is HTMLCanvasElement =>
   "getContext" in el;
 
@@ -17,6 +19,13 @@ export type Rectangle = [
   bottomLeft: Vector2
 ];
 
+export type RectangleColor = [
+  topLeft: Color,
+  topRight: Color,
+  bottomRight: Color,
+  bottomLeft: Color
+];
+
 export interface InitializeContextOptions {
   depthTestEnabled: boolean;
   depthFunc: number;
@@ -27,7 +36,7 @@ export interface InitializeContextOptions {
 }
 
 export interface EngineContext {
-  drawRectangle: (rec: Rectangle, color: Color) => void;
+  drawRectangle: (rec: Rectangle, color: Color | RectangleColor) => void;
   renderScene: () => void;
 }
 
@@ -296,6 +305,12 @@ const renderGameObject = (
   gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
 };
 
+const isColorArray = (
+  color: Color | RectangleColor
+): color is RectangleColor => {
+  return color.some((c) => Array.isArray(c));
+};
+
 export const initializeScene = (
   options: InitializeContextOptions,
   gl: WebGLRenderingContext
@@ -306,11 +321,11 @@ export const initializeScene = (
   const programInfo = initializeShaderProgram(gl);
   const gameObjects: GameObject[] = [];
 
-  const drawRectangle = (rec: Rectangle, color: Color) => {
+  const drawRectangle = (rec: Rectangle, color: Color | RectangleColor) => {
     const positions = rec.flat();
-
-    const colors = [...color, ...color, ...color, ...color];
-
+    const colors = isColorArray(color)
+      ? color.flat()
+      : [...color, ...color, ...color, ...color];
     const buffers = initializeBuffers(positions, colors, gl);
     gameObjects.push(buffers);
   };
