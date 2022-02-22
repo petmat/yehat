@@ -1,4 +1,4 @@
-import { mat4 } from "gl-matrix";
+import { ReadonlyVec2, mat4, vec3 } from "gl-matrix";
 
 import { fsSource } from "./shaders/fragmentShader";
 import { vsSource } from "./shaders/vertexShader";
@@ -40,14 +40,22 @@ export interface InitializeContextOptions {
 }
 
 export interface SceneContext {
-  createTriangle: (triangle: Triangle, color: Color | TriangleColor) => void;
-  createRectangle: (rec: Rectangle, color: Color | RectangleColor) => void;
+  createTriangle: (
+    triangle: Triangle,
+    color: Color | TriangleColor
+  ) => GameObject;
+  createRectangle: (
+    rec: Rectangle,
+    color: Color | RectangleColor
+  ) => GameObject;
   createCircle: (
     center: Vector2,
     radius: number,
     resolution: number,
     color: Color
-  ) => void;
+  ) => GameObject;
+  translate2D: (delta: ReadonlyVec2, gameObject: GameObject) => void;
+  scale2D: (value: number, gameObject: GameObject) => void;
   drawScene: () => void;
 }
 
@@ -64,6 +72,7 @@ interface ShaderProgramInfo {
 }
 
 export interface GameObject {
+  modelViewMatrix: mat4;
   vertexCount: number;
   drawMode: number;
   position: WebGLBuffer;
@@ -223,17 +232,19 @@ const initializeColorBuffer = (
   return colorBuffer;
 };
 
-const initializeBuffers = (
+const initializeGameObject = (
   vertexCount: number,
   drawMode: number,
   positions: number[],
   colors: number[],
   gl: WebGLRenderingContext
 ): GameObject => {
+  const modelViewMatrix = initializeModelViewMatrix();
   const position = initializePositionBuffer(positions, gl);
   const color = initializeColorBuffer(colors, gl);
 
   return {
+    modelViewMatrix,
     vertexCount,
     drawMode,
     position,
@@ -307,7 +318,6 @@ const drawGameObject = (
   gameObject: GameObject,
   programInfo: ShaderProgramInfo,
   projectionMatrix: mat4,
-  modelViewMatrix: mat4,
   gl: WebGLRenderingContext
 ) => {
   setVertexPositionAttribute(gameObject, programInfo, gl);
@@ -315,7 +325,12 @@ const drawGameObject = (
 
   gl.useProgram(programInfo.program);
 
-  setShaderUniforms(programInfo, projectionMatrix, modelViewMatrix, gl);
+  setShaderUniforms(
+    programInfo,
+    projectionMatrix,
+    gameObject.modelViewMatrix,
+    gl
+  );
 
   const offset = 0;
   gl.drawArrays(gameObject.drawMode, offset, gameObject.vertexCount);
@@ -333,38 +348,45 @@ export const initializeScene = (
 ): SceneContext => {
   initializeDepth(options, gl);
   const projectionMatrix = initializeProjectionMatrix(options);
-  const modelViewMatrix = initializeModelViewMatrix();
   const programInfo = initializeShaderProgram(gl);
   const gameObjects: GameObject[] = [];
 
-  const createTriangle = (triangle: Triangle, color: Color | TriangleColor) => {
+  const createTriangle = (
+    triangle: Triangle,
+    color: Color | TriangleColor
+  ): GameObject => {
     const positions = triangle.flat();
     const colors = isSingleColor(color)
       ? [...color, ...color, ...color, ...color]
       : color.flat();
-    const buffers = initializeBuffers(
+    const gameObject = initializeGameObject(
       3,
       gl.TRIANGLE_STRIP,
       positions,
       colors,
       gl
     );
-    gameObjects.push(buffers);
+    gameObjects.push(gameObject);
+    return gameObject;
   };
 
-  const createRectangle = (rec: Rectangle, color: Color | RectangleColor) => {
+  const createRectangle = (
+    rec: Rectangle,
+    color: Color | RectangleColor
+  ): GameObject => {
     const positions = rec.flat();
     const colors = isSingleColor(color)
       ? [...color, ...color, ...color, ...color]
       : color.flat();
-    const buffers = initializeBuffers(
+    const gameObject = initializeGameObject(
       4,
       gl.TRIANGLE_STRIP,
       positions,
       colors,
       gl
     );
-    gameObjects.push(buffers);
+    gameObjects.push(gameObject);
+    return gameObject;
   };
 
   const createCircle = (
@@ -372,7 +394,7 @@ export const initializeScene = (
     radius: number,
     resolution: number,
     color: Color
-  ) => {
+  ): GameObject => {
     const positions = [...center];
 
     const stops = resolution;
@@ -388,25 +410,39 @@ export const initializeScene = (
       colors.push(...color);
     }
 
-    const buffers = initializeBuffers(
+    const gameObject = initializeGameObject(
       stops + 2,
       gl.TRIANGLE_FAN,
       positions,
       colors,
       gl
     );
-    gameObjects.push(buffers);
+    gameObjects.push(gameObject);
+    return gameObject;
+  };
+
+  const translate2D = (
+    delta: ReadonlyVec2,
+    { modelViewMatrix }: GameObject
+  ) => {
+    mat4.translate(
+      modelViewMatrix,
+      modelViewMatrix,
+      vec3.fromValues(delta[0], delta[1], 0.0)
+    );
+  };
+
+  const scale2D = (value: number, { modelViewMatrix }: GameObject) => {
+    mat4.scale(
+      modelViewMatrix,
+      modelViewMatrix,
+      vec3.fromValues(value, value, 0.0)
+    );
   };
 
   const drawScene = () => {
     for (const gameObject of gameObjects) {
-      drawGameObject(
-        gameObject,
-        programInfo,
-        projectionMatrix,
-        modelViewMatrix,
-        gl
-      );
+      drawGameObject(gameObject, programInfo, projectionMatrix, gl);
     }
   };
 
@@ -414,6 +450,8 @@ export const initializeScene = (
     createRectangle,
     createTriangle,
     createCircle,
+    translate2D,
+    scale2D,
     drawScene,
   };
 };
