@@ -9,6 +9,7 @@ const main = () => {
     createCircle,
     translate2D,
     scale2D,
+    rotate2D,
     drawScene,
   } = initializeScene(
     {
@@ -21,8 +22,6 @@ const main = () => {
     },
     gl
   );
-
-  clear(Colors.Black, 1.0, gl);
 
   const rectangle = createRectangle(
     [
@@ -48,7 +47,18 @@ const main = () => {
   scale2D(0.8, circle);
   translate2D([2.2, 0.0], circle);
 
-  drawScene();
+  let then = 0;
+
+  const render = (now: number) => {
+    const deltaTime = now - then;
+    then = now;
+    rotate2D(0.002 * deltaTime, rectangle);
+    clear(Colors.Black, 1.0, gl);
+    drawScene();
+    requestAnimationFrame(render);
+  };
+
+  requestAnimationFrame(render);
 };
 
 window.onload = main;

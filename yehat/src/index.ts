@@ -56,6 +56,7 @@ export interface SceneContext {
   ) => GameObject;
   translate2D: (delta: ReadonlyVec2, gameObject: GameObject) => void;
   scale2D: (value: number, gameObject: GameObject) => void;
+  rotate2D: (value: number, gameObject: GameObject) => void;
   drawScene: () => void;
 }
 
@@ -440,6 +441,10 @@ export const initializeScene = (
     );
   };
 
+  const rotate2D = (value: number, { modelViewMatrix }: GameObject) => {
+    mat4.rotateZ(modelViewMatrix, modelViewMatrix, value);
+  };
+
   const drawScene = () => {
     for (const gameObject of gameObjects) {
       drawGameObject(gameObject, programInfo, projectionMatrix, gl);
@@ -452,6 +457,7 @@ export const initializeScene = (
     createCircle,
     translate2D,
     scale2D,
+    rotate2D,
     drawScene,
   };
 };
