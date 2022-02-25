@@ -1,4 +1,10 @@
-import { Colors, clear, getWebGLContext, initializeScene } from "yehat";
+import {
+  Colors,
+  clear,
+  getWebGLContext,
+  initializeScene,
+  loadTexture,
+} from "yehat";
 
 const main = () => {
   const canvas = document.querySelector("#glCanvas");
@@ -23,6 +29,8 @@ const main = () => {
     gl
   );
 
+  const texture = loadTexture(gl, "assets/textures/square_texture.png");
+
   const rectangle = createRectangle(
     [
       [1, 1],
@@ -30,7 +38,7 @@ const main = () => {
       [1, -1],
       [-1, -1],
     ],
-    Colors.Red
+    { type: "texture", texture }
   );
   scale2D(0.8, rectangle);
   translate2D([-2.2, 0.0], rectangle);

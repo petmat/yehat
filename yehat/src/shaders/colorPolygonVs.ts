@@ -1,4 +1,4 @@
-export const vsSource = `
+export const colorPolygonVsSource = `
   attribute vec4 aVertexPosition;
   attribute vec4 aVertexColor;
 

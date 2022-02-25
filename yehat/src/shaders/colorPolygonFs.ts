@@ -1,4 +1,4 @@
-export const fsSource = `
+export const colorPolygonFsSource = `
   varying lowp vec4 vColor;
 
   void main() {
