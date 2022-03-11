@@ -1,0 +1,15 @@
+{
+  "name": "sprites",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn parcel src/index.html src/assets/textures/**/*"
+  },
+  "dependencies": {
+    "yehat": "0.0.1"
+  },
+  "devDependencies": {
+    "parcel": "2.2.1"
+  }
+}
