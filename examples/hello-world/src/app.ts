@@ -1,6 +1,6 @@
 import { Colors, getWebGLContext, initializeScene } from "yehat";
 
-const main = () => {
+const main = async () => {
   const canvas = document.querySelector("#glCanvas");
   const gl = getWebGLContext(canvas);
   const {
@@ -15,7 +15,7 @@ const main = () => {
     loadTexture,
   } = initializeScene(gl);
 
-  const texture = loadTexture("assets/textures/square_texture.png");
+  const texture = await loadTexture("assets/textures/square_texture.png");
 
   const rectangle = createRectangle(
     [
@@ -57,4 +57,4 @@ const main = () => {
   requestAnimationFrame(render);
 };
 
-window.onload = main;
+window.onload = () => main().catch(console.error);

@@ -100,7 +100,7 @@ export interface SceneContext {
   rotate2D: (value: number, gameObject: Transformable2DGameObject) => void;
   clear: (color: Color, depth?: number) => void;
   drawScene: () => void;
-  loadTexture: (url: string) => WebGLTexture;
+  loadTexture: (url: string) => Promise<WebGLTexture>;
 }
 
 interface ColorAttribLocations {
@@ -814,60 +814,64 @@ const drawScene =
     }
   };
 
-const loadTexture = (gl: WebGLRenderingContext) => (url: string) => {
-  const texture = gl.createTexture();
+const loadTexture =
+  (gl: WebGLRenderingContext) =>
+  (url: string): Promise<WebGLTexture> =>
+    new Promise((resolve, reject) => {
+      const texture = gl.createTexture();
 
-  if (!texture) {
-    throw new Error("Failed to create texture");
-  }
+      if (!texture) {
+        reject(new Error("Failed to create texture"));
+        return;
+      }
 
-  gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
 
-  const level = 0;
-  const internalFormat = gl.RGBA;
-  const width = 1;
-  const height = 1;
-  const border = 0;
-  const srcFormat = gl.RGBA;
-  const srcType = gl.UNSIGNED_BYTE;
-  const pixel = new Uint8Array([0, 0, 0, 0]);
-  // gl.texImage2D(
-  //   gl.TEXTURE_2D,
-  //   level,
-  //   internalFormat,
-  //   width,
-  //   height,
-  //   border,
-  //   srcFormat,
-  //   srcType,
-  //   pixel
-  // );
+      const level = 0;
+      const internalFormat = gl.RGBA;
+      const width = 1;
+      const height = 1;
+      const border = 0;
+      const srcFormat = gl.RGBA;
+      const srcType = gl.UNSIGNED_BYTE;
+      const pixel = new Uint8Array([0, 0, 0, 0]);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        level,
+        internalFormat,
+        width,
+        height,
+        border,
+        srcFormat,
+        srcType,
+        pixel
+      );
 
-  const image = new Image();
-  image.onload = () => {
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      level,
-      internalFormat,
-      srcFormat,
-      srcType,
-      image
-    );
+      const image = new Image();
+      image.onload = () => {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          level,
+          internalFormat,
+          srcFormat,
+          srcType,
+          image
+        );
 
-    if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
-      gl.generateMipmap(gl.TEXTURE_2D);
-    } else {
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    }
-  };
-  image.src = url;
+        if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+          gl.generateMipmap(gl.TEXTURE_2D);
+        } else {
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        }
 
-  return texture;
-};
+        resolve(texture);
+      };
+      image.src = url;
+    });
 
 const translate2D = (
   delta: ReadonlyVec2,

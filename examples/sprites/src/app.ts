@@ -1,11 +1,11 @@
 import { Colors, getWebGLContext, initializeScene } from "yehat";
 
-const main = () => {
+const main = async () => {
   const canvas = document.querySelector("#glCanvas");
   const gl = getWebGLContext(canvas);
   const { createSprite, loadTexture, clear, drawScene } = initializeScene(gl);
 
-  const texture = loadTexture("assets/textures/joy.png");
+  const texture = await loadTexture("assets/textures/joy.png");
 
   createSprite([128, 128], 64, texture);
 
@@ -13,13 +13,8 @@ const main = () => {
 
   createSprite([288, 128], 64, texture);
 
-  const render = (now: number) => {
-    clear(Colors.Black);
-    drawScene();
-    requestAnimationFrame(render);
-  };
-
-  requestAnimationFrame(render);
+  clear(Colors.Black);
+  drawScene();
 };
 
-window.onload = main;
+window.onload = () => main().catch(console.error);
