@@ -138,6 +138,7 @@ interface TextureShaderProgram {
 
 interface SpriteAttribLocations {
   spritePosition: number;
+  spriteSize: number;
 }
 
 interface SpriteUniformLocations {
@@ -423,6 +424,7 @@ const initializeSpriteShaderProgram = (
     type: "sprite",
     attribLocations: {
       spritePosition: gl.getAttribLocation(shaderProgram, "spritePosition"),
+      spriteSize: gl.getAttribLocation(shaderProgram, "spriteSize"),
     },
     uniformLocations: {
       screenSize,
@@ -775,7 +777,20 @@ const createSprite =
       location: spriteShaderProgram.uniformLocations.spriteTexture,
       value: 0,
     };
+
     const positionBuffer = initializeBuffer(gl, position);
+    const positionAttribute = {
+      location: spriteShaderProgram.attribLocations.spritePosition,
+      size: vec2AttribSize,
+      buffer: positionBuffer,
+    };
+
+    const sizeBuffer = initializeBuffer(gl, [size]);
+    const sizeAttribute = {
+      location: spriteShaderProgram.attribLocations.spriteSize,
+      size: 1,
+      buffer: sizeBuffer,
+    };
 
     const gameObject: GameObject = {
       drawMode: gl.POINTS,
@@ -785,13 +800,7 @@ const createSprite =
         screenSize: screenSizeUniform,
         spriteTexture,
       },
-      attributes: [
-        {
-          location: spriteShaderProgram.attribLocations.spritePosition,
-          size: vec2AttribSize,
-          buffer: positionBuffer,
-        },
-      ],
+      attributes: [positionAttribute, sizeAttribute],
     };
 
     gameObjects.push(gameObject);

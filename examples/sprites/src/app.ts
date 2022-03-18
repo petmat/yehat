@@ -8,10 +8,13 @@ const main = async () => {
   const texture = await loadTexture("assets/textures/joy.png");
 
   createSprite([128, 128], 64, texture);
+  createSprite([256, 128], 64, texture);
+  createSprite([384, 128], 92, texture);
+  createSprite([128, 128], 64, texture);
 
-  createSprite([256, 128], 96, texture);
-
-  createSprite([288, 128], 64, texture);
+  createSprite([128, 256], 64, texture);
+  createSprite([256, 256], 64, texture);
+  createSprite([288, 256], 64, texture);
 
   clear(Colors.Black);
   drawScene();
