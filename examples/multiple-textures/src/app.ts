@@ -5,15 +5,11 @@ const main = async () => {
   const gl = getWebGLContext(canvas);
   const { createSprite, loadTexture, clear, drawScene } = initializeScene(gl);
 
-  const texture = await loadTexture("assets/textures/joy.png");
+  const texture1 = await loadTexture("assets/textures/joy.png");
+  const texture2 = await loadTexture("assets/textures/square_texture.png");
 
-  createSprite([128, 128], 64, texture);
-  createSprite([256, 128], 64, texture);
-  createSprite([384, 128], 92, texture);
-
-  createSprite([128, 256], 64, texture);
-  createSprite([256, 256], 64, texture);
-  createSprite([288, 256], 64, texture);
+  createSprite([256, 128], 64, texture1);
+  createSprite([384, 128], 92, texture2);
 
   clear(Colors.Black);
   drawScene();

@@ -90,7 +90,7 @@ export interface SceneContext {
   createSprite: (
     point: Vector2,
     size: number,
-    texture: WebGLTexture
+    texture: TextureInfo
   ) => GameObject;
   translate2D: (
     delta: ReadonlyVec2,
@@ -100,7 +100,7 @@ export interface SceneContext {
   rotate2D: (value: number, gameObject: Transformable2DGameObject) => void;
   clear: (color: Color, depth?: number) => void;
   drawScene: () => void;
-  loadTexture: (url: string) => Promise<WebGLTexture>;
+  loadTexture: (url: string) => Promise<TextureInfo>;
 }
 
 interface ColorAttribLocations {
@@ -214,9 +214,15 @@ export interface GameObject {
   shaderProgram: WebGLProgram;
   attributes: GameObjectAttribute[];
   uniforms: Partial<Record<UniformKey, GameObjectUniform>>;
+  texture?: WebGLTexture;
 }
 
 type Transformable2DGameObject = GameObject & Transformable2D;
+
+export interface TextureInfo {
+  textureIndex: number;
+  texture: WebGLTexture;
+}
 
 export const getWebGLContext = (canvas: Element) => {
   if (!isCanvasElement(canvas)) {
@@ -534,6 +540,11 @@ const drawGameObject = (gl: WebGLRenderingContext, gameObject: GameObject) => {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+  if (gameObject.texture) {
+    activateTexture(gl, (gameObject.uniforms.spriteTexture as Uniform1i).value);
+    gl.bindTexture(gl.TEXTURE_2D, gameObject.texture);
+  }
+
   const offset = 0;
   gl.drawArrays(gameObject.drawMode, offset, gameObject.vertexCount);
 };
@@ -762,20 +773,20 @@ const createCircle =
 const createSprite =
   (
     gl: WebGLRenderingContext,
-    spriteShaderProgram: SpriteShaderProgram,
     screenSize: vec2,
+    spriteShaderProgram: SpriteShaderProgram,
     gameObjects: GameObject[]
   ) =>
-  (position: Vector2, size: number, texture: WebGLTexture) => {
+  (position: Vector2, size: number, textureInfo: TextureInfo) => {
     const screenSizeUniform: GameObjectUniform = {
       type: "2fv",
       location: spriteShaderProgram.uniformLocations.screenSize,
       value: screenSize,
     };
-    const spriteTexture: GameObjectUniform = {
+    const spriteTextureUniform: GameObjectUniform = {
       type: "1i",
       location: spriteShaderProgram.uniformLocations.spriteTexture,
-      value: 0,
+      value: textureInfo.textureIndex,
     };
 
     const positionBuffer = initializeBuffer(gl, position);
@@ -798,9 +809,10 @@ const createSprite =
       shaderProgram: spriteShaderProgram.program,
       uniforms: {
         screenSize: screenSizeUniform,
-        spriteTexture,
+        spriteTexture: spriteTextureUniform,
       },
       attributes: [positionAttribute, sizeAttribute],
+      texture: textureInfo.texture,
     };
 
     gameObjects.push(gameObject);
@@ -823,9 +835,17 @@ const drawScene =
     }
   };
 
+let textureCount = 0;
+
+const activateTexture = (gl: WebGLRenderingContext, index: number) => {
+  gl.activeTexture(
+    (gl as unknown as Record<string, number>)[`TEXTURE${index}`]
+  );
+};
+
 const loadTexture =
   (gl: WebGLRenderingContext) =>
-  (url: string): Promise<WebGLTexture> =>
+  (url: string): Promise<TextureInfo> =>
     new Promise((resolve, reject) => {
       const texture = gl.createTexture();
 
@@ -858,7 +878,8 @@ const loadTexture =
 
       const image = new Image();
       image.onload = () => {
-        gl.activeTexture(gl.TEXTURE0);
+        const textureIndex = textureCount;
+        activateTexture(gl, textureIndex);
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(
           gl.TEXTURE_2D,
@@ -877,7 +898,8 @@ const loadTexture =
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         }
 
-        resolve(texture);
+        textureCount = textureCount + 1;
+        resolve({ textureIndex, texture });
       };
       image.src = url;
     });
@@ -963,8 +985,8 @@ export const initializeScene = (
     ),
     createSprite: createSprite(
       gl,
-      spriteShaderProgram,
       screenSize,
+      spriteShaderProgram,
       gameObjects
     ),
     translate2D,
