@@ -7,7 +7,7 @@ import { spriteVsSource } from "./shaders/spriteVs";
 import { texturePolygonFsSource } from "./shaders/texturePolygonFs";
 import { texturePolygonVsSource } from "./shaders/texturePolygonVs";
 
-export * from "./constants";
+export * from "./colors";
 
 const vec2AttribSize = 2;
 const colorAttribSize = 4;
@@ -33,7 +33,9 @@ interface RectangleColorMaterial {
 
 interface TextureMaterial {
   type: "texture";
-  texture: WebGLTexture;
+  texture: TextureInfo;
+  stretch?: boolean;
+  scale?: number;
 }
 
 export type RectangleMaterial = RectangleColorMaterial | TextureMaterial;
@@ -45,7 +47,7 @@ interface GameObjectColorMaterial {
 
 interface GameObjectTextureMaterial {
   type: "texture";
-  texture: WebGLTexture;
+  texture: TextureInfo;
   textureCoordinates: number[];
 }
 
@@ -78,7 +80,10 @@ export interface SceneContext {
     color: Color | TriangleColor
   ) => Transformable2DGameObject;
   createRectangle: (
-    rec: Rectangle,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
     material: RectangleMaterial
   ) => Transformable2DGameObject;
   createCircle: (
@@ -104,18 +109,19 @@ export interface SceneContext {
 }
 
 interface ColorAttribLocations {
-  vertexPosition: number;
+  position: number;
   vertexColor: number;
 }
 
 interface TextureAttribLocations {
-  vertexPosition: number;
+  position: number;
   textureCoord: number;
 }
 
 interface UniformLocations {
   projectionMatrix: WebGLUniformLocation;
   modelViewMatrix: WebGLUniformLocation;
+  screenSize: WebGLUniformLocation;
 }
 
 interface ColorShaderProgram {
@@ -126,7 +132,7 @@ interface ColorShaderProgram {
 }
 
 interface TextureUniformLocations extends UniformLocations {
-  sampler: WebGLUniformLocation;
+  texture: WebGLUniformLocation;
 }
 
 interface TextureShaderProgram {
@@ -143,7 +149,7 @@ interface SpriteAttribLocations {
 
 interface SpriteUniformLocations {
   screenSize: WebGLUniformLocation;
-  spriteTexture: WebGLUniformLocation;
+  texture: WebGLUniformLocation;
 }
 
 interface SpriteShaderProgram {
@@ -163,7 +169,7 @@ type UniformKey =
   | "modelViewMatrix"
   | "projectionMatrix"
   | "screenSize"
-  | "spriteTexture";
+  | "texture";
 
 interface Uniform1i {
   type: "1i";
@@ -221,6 +227,8 @@ type Transformable2DGameObject = GameObject & Transformable2D;
 
 export interface TextureInfo {
   textureIndex: number;
+  width: number;
+  height: number;
   texture: WebGLTexture;
 }
 
@@ -258,14 +266,14 @@ const initializeProjectionMatrix = (
 
   const aspectRatio = canvasWidth / canvasHeight;
   const projectionMatrix = mat4.create();
-  mat4.perspective(projectionMatrix, fieldOfView, aspectRatio, zNear, zFar);
+  //mat4.perspective(projectionMatrix, fieldOfView, aspectRatio, zNear, zFar);
 
   return projectionMatrix;
 };
 
 const initializeModelViewMatrix = () => {
   const modelViewMatrix = mat4.create();
-  mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -6.0]);
+  mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -0.0]);
   return modelViewMatrix;
 };
 
@@ -343,12 +351,12 @@ const initializeColorShaderProgram = (
 
   const shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
 
+  const screenSize = getUniformLocationOrFail(gl, shaderProgram, "screenSize");
   const projectionMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
     "uProjectionMatrix"
   );
-
   const modelViewMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
@@ -359,10 +367,11 @@ const initializeColorShaderProgram = (
     program: shaderProgram,
     type: "color",
     attribLocations: {
-      vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
+      position: gl.getAttribLocation(shaderProgram, "position"),
       vertexColor: gl.getAttribLocation(shaderProgram, "aVertexColor"),
     },
     uniformLocations: {
+      screenSize,
       projectionMatrix,
       modelViewMatrix,
     },
@@ -381,31 +390,32 @@ const initializeTextureShaderProgram = (
 
   const shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
 
+  const screenSize = getUniformLocationOrFail(gl, shaderProgram, "screenSize");
   const projectionMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
     "uProjectionMatrix"
   );
-
   const modelViewMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
     "uModelViewMatrix"
   );
 
-  const sampler = getUniformLocationOrFail(gl, shaderProgram, "uSampler");
+  const texture = getUniformLocationOrFail(gl, shaderProgram, "texture");
 
   return {
     program: shaderProgram,
     type: "texture",
     attribLocations: {
-      vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
+      position: gl.getAttribLocation(shaderProgram, "position"),
       textureCoord: gl.getAttribLocation(shaderProgram, "aTextureCoord"),
     },
     uniformLocations: {
+      screenSize,
       projectionMatrix,
       modelViewMatrix,
-      sampler,
+      texture,
     },
   };
 };
@@ -419,11 +429,7 @@ const initializeSpriteShaderProgram = (
   const shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
 
   const screenSize = getUniformLocationOrFail(gl, shaderProgram, "screenSize");
-  const spriteTexture = getUniformLocationOrFail(
-    gl,
-    shaderProgram,
-    "spriteTexture"
-  );
+  const texture = getUniformLocationOrFail(gl, shaderProgram, "texture");
 
   return {
     program: shaderProgram,
@@ -434,7 +440,7 @@ const initializeSpriteShaderProgram = (
     },
     uniformLocations: {
       screenSize,
-      spriteTexture,
+      texture,
     },
   };
 };
@@ -466,6 +472,23 @@ const initializeColorAttribute = (
     size: colorAttribSize,
     buffer: colorBuffer,
   };
+};
+
+const initializeMaterialUniforms = (
+  textureShaderProgram: TextureShaderProgram,
+  material: GameObjectMaterial
+) => {
+  if (material.type === "color") {
+    return {};
+  } else {
+    const textureUniform: Uniform1i = {
+      type: "1i",
+      location: textureShaderProgram.uniformLocations.texture,
+      value: material.texture.textureIndex,
+    };
+
+    return { texture: textureUniform };
+  }
 };
 
 const initializeMaterialAttributes = (
@@ -541,7 +564,7 @@ const drawGameObject = (gl: WebGLRenderingContext, gameObject: GameObject) => {
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   if (gameObject.texture) {
-    activateTexture(gl, (gameObject.uniforms.spriteTexture as Uniform1i).value);
+    activateTexture(gl, (gameObject.uniforms.texture as Uniform1i).value);
     gl.bindTexture(gl.TEXTURE_2D, gameObject.texture);
   }
 
@@ -556,7 +579,9 @@ const isSingleColor = <TMultiColor extends Color[]>(
 };
 
 const getGameObjectMaterial = (
-  material: RectangleMaterial
+  material: RectangleMaterial,
+  width: number,
+  height: number
 ): GameObjectMaterial => {
   if (material.type === "color") {
     if (isSingleColor(material.color)) {
@@ -576,10 +601,23 @@ const getGameObjectMaterial = (
       };
     }
   } else {
+    const textureWidth = material.texture.width;
+    const textureHeight = material.texture.height;
+    const scale = material.scale ?? 1;
+
     return {
       type: "texture",
       texture: material.texture,
-      textureCoordinates: [0, 0, 1, 0, 0, 1, 1, 1],
+      textureCoordinates: [
+        width / textureWidth / scale,
+        height / textureHeight / scale,
+        0,
+        height / textureHeight / scale,
+        width / textureWidth / scale,
+        0,
+        0,
+        0,
+      ],
     };
   }
 };
@@ -628,7 +666,7 @@ const createTriangle =
       },
       attributes: [
         {
-          location: colorShaderProgram.attribLocations.vertexPosition,
+          location: colorShaderProgram.attribLocations.position,
           size: vec2AttribSize,
           buffer: positionBuffer,
         },
@@ -644,20 +682,37 @@ const createTriangle =
 const createRectangle =
   (
     gl: WebGLRenderingContext,
+    screenSize: vec2,
     colorShaderProgram: ColorShaderProgram,
     textureShaderProgram: TextureShaderProgram,
     gameObjects: GameObject[],
     projectionMatrix: mat4
   ) =>
   (
-    rec: Rectangle,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
     rectangleMaterial: RectangleMaterial
   ): Transformable2DGameObject => {
-    const positions = rec.flat();
-    const material = getGameObjectMaterial(rectangleMaterial);
+    const positions = [
+      x + width,
+      y + height,
+      x,
+      y + height,
+      x + width,
+      y,
+      x,
+      y,
+    ];
+    const material = getGameObjectMaterial(rectangleMaterial, width, height);
 
     const modelViewMatrix = initializeModelViewMatrix();
     const positionBuffer = initializeBuffer(gl, positions);
+    const materialUniforms = initializeMaterialUniforms(
+      textureShaderProgram,
+      material
+    );
     const materialAttributes = initializeMaterialAttributes(
       gl,
       colorShaderProgram,
@@ -667,33 +722,44 @@ const createRectangle =
 
     const program =
       material.type === "color" ? colorShaderProgram : textureShaderProgram;
+    const screenSizeUniform: GameObjectUniform = {
+      type: "2fv",
+      location: program.uniformLocations.screenSize,
+      value: screenSize,
+    };
+    const modelViewMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: program.uniformLocations.modelViewMatrix,
+      transpose: false,
+      value: modelViewMatrix,
+    };
+    const projectionMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: program.uniformLocations.projectionMatrix,
+      transpose: false,
+      value: projectionMatrix,
+    };
 
     const gameObject: Transformable2DGameObject = {
       drawMode: gl.TRIANGLE_STRIP,
       vertexCount: 4,
       shaderProgram: program.program,
       uniforms: {
-        modelViewMatrix: {
-          type: "Matrix4fv",
-          location: program.uniformLocations.modelViewMatrix,
-          transpose: false,
-          value: modelViewMatrix,
-        },
-        projectionMatrix: {
-          type: "Matrix4fv",
-          location: program.uniformLocations.projectionMatrix,
-          transpose: false,
-          value: projectionMatrix,
-        },
+        screenSize: screenSizeUniform,
+        modelViewMatrix: modelViewMatrixUniform,
+        projectionMatrix: projectionMatrixUniform,
+        ...materialUniforms,
       },
       attributes: [
         {
-          location: program.attribLocations.vertexPosition,
+          location: program.attribLocations.position,
           size: vec2AttribSize,
           buffer: positionBuffer,
         },
         ...materialAttributes,
       ],
+      texture:
+        material.type === "texture" ? material.texture.texture : undefined,
     };
 
     gameObjects.push(gameObject);
@@ -737,27 +803,30 @@ const createCircle =
       colors
     );
 
+    const modelViewMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: colorShaderProgram.uniformLocations.modelViewMatrix,
+      transpose: false,
+      value: modelViewMatrix,
+    };
+    const projectionMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: colorShaderProgram.uniformLocations.projectionMatrix,
+      transpose: false,
+      value: projectionMatrix,
+    };
+
     const gameObject: Transformable2DGameObject = {
       drawMode: gl.TRIANGLE_FAN,
       vertexCount: stops + 2,
       shaderProgram: colorShaderProgram.program,
       uniforms: {
-        modelViewMatrix: {
-          type: "Matrix4fv",
-          location: colorShaderProgram.uniformLocations.modelViewMatrix,
-          transpose: false,
-          value: modelViewMatrix,
-        },
-        projectionMatrix: {
-          type: "Matrix4fv",
-          location: colorShaderProgram.uniformLocations.projectionMatrix,
-          transpose: false,
-          value: projectionMatrix,
-        },
+        modelViewMatrix: modelViewMatrixUniform,
+        projectionMatrix: projectionMatrixUniform,
       },
       attributes: [
         {
-          location: colorShaderProgram.attribLocations.vertexPosition,
+          location: colorShaderProgram.attribLocations.position,
           size: vec2AttribSize,
           buffer: positionBuffer,
         },
@@ -783,9 +852,9 @@ const createSprite =
       location: spriteShaderProgram.uniformLocations.screenSize,
       value: screenSize,
     };
-    const spriteTextureUniform: GameObjectUniform = {
+    const textureUniform: GameObjectUniform = {
       type: "1i",
-      location: spriteShaderProgram.uniformLocations.spriteTexture,
+      location: spriteShaderProgram.uniformLocations.texture,
       value: textureInfo.textureIndex,
     };
 
@@ -809,7 +878,7 @@ const createSprite =
       shaderProgram: spriteShaderProgram.program,
       uniforms: {
         screenSize: screenSizeUniform,
-        spriteTexture: spriteTextureUniform,
+        texture: textureUniform,
       },
       attributes: [positionAttribute, sizeAttribute],
       texture: textureInfo.texture,
@@ -858,23 +927,8 @@ const loadTexture =
 
       const level = 0;
       const internalFormat = gl.RGBA;
-      const width = 1;
-      const height = 1;
-      const border = 0;
       const srcFormat = gl.RGBA;
       const srcType = gl.UNSIGNED_BYTE;
-      const pixel = new Uint8Array([0, 0, 0, 0]);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        level,
-        internalFormat,
-        width,
-        height,
-        border,
-        srcFormat,
-        srcType,
-        pixel
-      );
 
       const image = new Image();
       image.onload = () => {
@@ -889,17 +943,21 @@ const loadTexture =
           srcType,
           image
         );
-
         if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
           gl.generateMipmap(gl.TEXTURE_2D);
         } else {
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         }
 
         textureCount = textureCount + 1;
-        resolve({ textureIndex, texture });
+        resolve({
+          textureIndex,
+          width: image.width,
+          height: image.height,
+          texture,
+        });
       };
       image.src = url;
     });
@@ -940,7 +998,7 @@ export const initializeScene = (
   const defaultSceneOptions: SceneOptions = {
     depthTestEnabled: true,
     depthFunc: gl.LEQUAL,
-    fieldOfView: (45 * Math.PI) / 180,
+    fieldOfView: (45 * Math.PI) / 360,
     zNear: 0.1,
     zFar: 100.0,
   };
@@ -972,6 +1030,7 @@ export const initializeScene = (
     ),
     createRectangle: createRectangle(
       gl,
+      screenSize,
       colorShaderProgram,
       textureShaderProgram,
       gameObjects,

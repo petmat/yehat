@@ -17,31 +17,26 @@ const main = async () => {
 
   const texture = await loadTexture("assets/textures/square_texture.png");
 
-  const rectangle = createRectangle(
-    [
-      [1, 1],
-      [-1, 1],
-      [1, -1],
-      [-1, -1],
-    ],
-    { type: "texture", texture }
-  );
-  scale2D(0.8, rectangle);
-  translate2D([-2.2, 0.0], rectangle);
+  const rectangle = createRectangle(260, 180, 120, 120, {
+    type: "texture",
+    texture,
+  });
+  // scale2D(0.8, rectangle);
+  // translate2D([-2.2, 0.0], rectangle);
 
-  const triangle = createTriangle(
-    [
-      [0, 1],
-      [1, -1],
-      [-1, -1],
-    ],
-    Colors.Yellow
-  );
-  scale2D(0.8, triangle);
+  // const triangle = createTriangle(
+  //   [
+  //     [0, 1],
+  //     [1, -1],
+  //     [-1, -1],
+  //   ],
+  //   Colors.Yellow
+  // );
+  // scale2D(0.8, triangle);
 
-  const circle = createCircle([0, 0], 1, 100, Colors.Green);
-  scale2D(0.8, circle);
-  translate2D([2.2, 0.0], circle);
+  // const circle = createCircle([0, 0], 1, 100, Colors.Green);
+  // scale2D(0.8, circle);
+  // translate2D([2.2, 0.0], circle);
 
   let then = 0;
 
