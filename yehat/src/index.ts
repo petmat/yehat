@@ -36,6 +36,8 @@ interface TextureMaterial {
   texture: TextureInfo;
   stretch?: boolean;
   scale?: number;
+  xOffset?: number;
+  yOffset?: number;
 }
 
 export type RectangleMaterial = RectangleColorMaterial | TextureMaterial;
@@ -97,6 +99,13 @@ export interface SceneContext {
     size: number,
     texture: TextureInfo
   ) => GameObject;
+  createText: (
+    point: Vector2,
+    text: string,
+    texture: TextureInfo,
+    size: number,
+    scale?: number
+  ) => GameObject[];
   translate2D: (
     delta: ReadonlyVec2,
     gameObject: Transformable2DGameObject
@@ -604,20 +613,26 @@ const getGameObjectMaterial = (
     const textureWidth = material.texture.width;
     const textureHeight = material.texture.height;
     const scale = material.scale ?? 1;
+    const actualWidth = width / textureWidth / scale;
+    const actualHeight = height / textureHeight / scale;
+    const xOffset = ((material.xOffset ?? 0) * width) / textureWidth / scale;
+    const yOffset = ((material.yOffset ?? 0) * height) / textureHeight / scale;
+
+    const textureCoordinates = [
+      xOffset + actualWidth,
+      yOffset + actualHeight,
+      xOffset,
+      yOffset + actualHeight,
+      xOffset + actualWidth,
+      yOffset,
+      xOffset,
+      yOffset,
+    ];
 
     return {
       type: "texture",
       texture: material.texture,
-      textureCoordinates: [
-        width / textureWidth / scale,
-        height / textureHeight / scale,
-        0,
-        height / textureHeight / scale,
-        width / textureWidth / scale,
-        0,
-        0,
-        0,
-      ],
+      textureCoordinates,
     };
   }
 };
@@ -889,6 +904,60 @@ const createSprite =
     return gameObject;
   };
 
+const getCharIndex = (char: string) => {
+  const chars =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-";
+  return chars.indexOf(char);
+};
+
+const createText =
+  (
+    gl: WebGLRenderingContext,
+    screenSize: vec2,
+    colorShaderProgram: ColorShaderProgram,
+    textureShaderProgram: TextureShaderProgram,
+    gameObjects: GameObject[],
+    projectionMatrix: mat4
+  ) =>
+  (
+    position: Vector2,
+    text: string,
+    textureInfo: TextureInfo,
+    size: number,
+    scale: number = 1
+  ) => {
+    const createCharRectangle = createRectangle(
+      gl,
+      screenSize,
+      colorShaderProgram,
+      textureShaderProgram,
+      gameObjects,
+      projectionMatrix
+    );
+
+    const columnCount = textureInfo.width / size;
+    const rowCount = textureInfo.height / size;
+    const charObjects: GameObject[] = [];
+
+    for (let i = 0; i < text.length; i++) {
+      const charIndex = getCharIndex(text[i]);
+
+      const xOffset = charIndex % columnCount;
+      const yOffset = Math.floor(charIndex / rowCount);
+
+      const charObject = createCharRectangle(
+        position[0] + size * scale * i,
+        position[1],
+        size * scale,
+        size * scale,
+        { type: "texture", texture: textureInfo, scale, xOffset, yOffset }
+      );
+      charObjects.push(charObject);
+    }
+
+    return charObjects;
+  };
+
 const clear =
   (gl: WebGLRenderingContext) =>
   (color: Color, depth: number = 1) => {
@@ -1048,6 +1117,14 @@ export const initializeScene = (
       screenSize,
       spriteShaderProgram,
       gameObjects
+    ),
+    createText: createText(
+      gl,
+      screenSize,
+      colorShaderProgram,
+      textureShaderProgram,
+      gameObjects,
+      projectionMatrix
     ),
     translate2D,
     scale2D,

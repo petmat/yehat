@@ -2,9 +2,20 @@ import { getWebGLContext, initializeScene, rgb } from "yehat";
 
 const main = async () => {
   const canvas = document.querySelector("#glCanvas");
+
+  if (!canvas) {
+    throw new Error("Could not get canvas");
+  }
+
   const gl = getWebGLContext(canvas);
-  const { createRectangle, createSprite, loadTexture, clear, drawScene } =
-    initializeScene(gl);
+  const {
+    createRectangle,
+    createSprite,
+    createText,
+    loadTexture,
+    clear,
+    drawScene,
+  } = initializeScene(gl);
 
   const bush = await loadTexture("assets/textures/bush.png");
   const bushSmall = await loadTexture("assets/textures/bush_small.png");
@@ -24,6 +35,10 @@ const main = async () => {
   const mario = await loadTexture("assets/textures/mario.png");
 
   const mushroom = await loadTexture("assets/textures/mushroom.png");
+
+  const marioFont = await loadTexture("assets/fonts/mario_font_square.png");
+  const xChar = await loadTexture("assets/textures/x.png");
+  const coin = await loadTexture("assets/textures/coin.png");
 
   // background
 
@@ -118,6 +133,18 @@ const main = async () => {
     texture: cloud,
     scale: 2,
   });
+
+  // game info text
+  createText([100, 80], "MARIO", marioFont, 16);
+  createText([320, 80], "WORLD", marioFont, 16);
+  createText([430, 80], "TIME", marioFont, 16);
+
+  createText([100, 100], "000000", marioFont, 16);
+  createSprite([232, 108], 16, coin);
+  createSprite([250, 108], 16, xChar);
+  createText([260, 100], "00", marioFont, 16);
+  createText([340, 100], "1-1", marioFont, 16);
+  createText([440, 100], "913", marioFont, 16);
 
   clear(rgb(127, 149, 255));
   drawScene();

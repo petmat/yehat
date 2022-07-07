@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "yarn parcel src/index.html src/assets/textures/**/*"
+    "start": "yarn parcel src/index.html src/assets/textures/**/* src/assets/fonts/**/*"
   },
   "dependencies": {
     "yehat": "0.0.1"
