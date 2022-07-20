@@ -342,7 +342,7 @@ const getUniformLocationOrFail = (
   const location = gl.getUniformLocation(shaderProgram, name);
 
   if (!location) {
-    throw new Error(`Failed to get the uniform location for ${name}.`);
+    throw new Error(`Failed to get the uniform location for "${name}".`);
   }
 
   return location;

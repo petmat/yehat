@@ -2,6 +2,11 @@ import { Colors, getWebGLContext, initializeScene } from "yehat";
 
 const main = async () => {
   const canvas = document.querySelector("#glCanvas");
+
+  if (!canvas) {
+    throw new Error("Could not get canvas");
+  }
+
   const gl = getWebGLContext(canvas);
   const { createSprite, loadTexture, clear, drawScene } = initializeScene(gl);
 
