@@ -1,4 +1,4 @@
-import { ReadonlyVec2, mat4, vec2, vec3 } from "gl-matrix";
+import { ReadonlyVec2, mat4, vec2, vec3, vec4 } from "gl-matrix";
 
 import { colorPolygonFsSource } from "./shaders/colorPolygonFs";
 import { colorPolygonVsSource } from "./shaders/colorPolygonVs";
@@ -88,6 +88,10 @@ export interface SceneContext {
     height: number,
     material: RectangleMaterial
   ) => Transformable2DGameObject;
+  createRectanglePos: (
+    positions: number[],
+    material: RectangleMaterial
+  ) => Transformable2DGameObject;
   createCircle: (
     center: Vector2,
     radius: number,
@@ -130,7 +134,6 @@ interface TextureAttribLocations {
 interface UniformLocations {
   projectionMatrix: WebGLUniformLocation;
   modelViewMatrix: WebGLUniformLocation;
-  screenSize: WebGLUniformLocation;
 }
 
 interface ColorShaderProgram {
@@ -229,6 +232,8 @@ export interface GameObject {
   shaderProgram: WebGLProgram;
   attributes: GameObjectAttribute[];
   uniforms: Partial<Record<UniformKey, GameObjectUniform>>;
+  positions?: number[];
+  projectionMatrix?: mat4;
   texture?: WebGLTexture;
 }
 
@@ -266,6 +271,24 @@ const initializeDepth = (gl: WebGLRenderingContext, options: SceneOptions) => {
   gl.depthFunc(depthFunc);
 };
 
+const createOrthographic = (
+  left: number,
+  right: number,
+  bottom: number,
+  top: number,
+  near: number,
+  far: number
+) => {
+  const projectionMatrix = mat4.create();
+  projectionMatrix[0] = 2 / (right - left);
+  projectionMatrix[5] = 2 / (top - bottom);
+  projectionMatrix[10] = -2 / (far - near);
+  projectionMatrix[12] = (-1 * (right + left)) / (right - left);
+  projectionMatrix[13] = (-1 * (top + bottom)) / (top - bottom);
+  projectionMatrix[14] = (-1 * (far + near)) / (far - near);
+  return projectionMatrix;
+};
+
 const initializeProjectionMatrix = (
   canvasWidth: number,
   canvasHeight: number,
@@ -274,15 +297,19 @@ const initializeProjectionMatrix = (
   const { fieldOfView, zNear, zFar } = options;
 
   const aspectRatio = canvasWidth / canvasHeight;
-  const projectionMatrix = mat4.create();
-  //mat4.perspective(projectionMatrix, fieldOfView, aspectRatio, zNear, zFar);
+  const projectionMatrix = createOrthographic(0, 640, 480, 0, -5, 5);
+
+  //mat4.ortho(projectionMatrix, -1, 1, -1, 1, -5, 5);
+
+  //printMatrix("PROJECTION", projectionMatrix);
 
   return projectionMatrix;
 };
 
 const initializeModelViewMatrix = () => {
   const modelViewMatrix = mat4.create();
-  mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -0.0]);
+  //mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -0.0]);
+  //printMatrix("INITIAL MODEL", modelViewMatrix);
   return modelViewMatrix;
 };
 
@@ -360,7 +387,6 @@ const initializeColorShaderProgram = (
 
   const shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
 
-  const screenSize = getUniformLocationOrFail(gl, shaderProgram, "screenSize");
   const projectionMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
@@ -380,7 +406,6 @@ const initializeColorShaderProgram = (
       vertexColor: gl.getAttribLocation(shaderProgram, "aVertexColor"),
     },
     uniformLocations: {
-      screenSize,
       projectionMatrix,
       modelViewMatrix,
     },
@@ -399,7 +424,6 @@ const initializeTextureShaderProgram = (
 
   const shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
 
-  const screenSize = getUniformLocationOrFail(gl, shaderProgram, "screenSize");
   const projectionMatrix = getUniformLocationOrFail(
     gl,
     shaderProgram,
@@ -417,11 +441,10 @@ const initializeTextureShaderProgram = (
     program: shaderProgram,
     type: "texture",
     attribLocations: {
-      position: gl.getAttribLocation(shaderProgram, "position"),
+      position: gl.getAttribLocation(shaderProgram, "aPosition"),
       textureCoord: gl.getAttribLocation(shaderProgram, "aTextureCoord"),
     },
     uniformLocations: {
-      screenSize,
       projectionMatrix,
       modelViewMatrix,
       texture,
@@ -539,6 +562,19 @@ const setAttribute = (
   gl.enableVertexAttribArray(location);
 };
 
+const toCoordArray = (arr: number[]): number[][] => {
+  const coords = [];
+  let coord = [];
+  for (const n of arr) {
+    coord.push(n);
+    if (coord.length === 2) {
+      coords.push(coord);
+      coord = [];
+    }
+  }
+  return coords;
+};
+
 const drawGameObject = (gl: WebGLRenderingContext, gameObject: GameObject) => {
   for (const attribute of gameObject.attributes) {
     setAttribute(gl, attribute.buffer, attribute.location, attribute.size);
@@ -577,6 +613,31 @@ const drawGameObject = (gl: WebGLRenderingContext, gameObject: GameObject) => {
     gl.bindTexture(gl.TEXTURE_2D, gameObject.texture);
   }
 
+  const modelViewMatrix = isTransformable2DGameObject(gameObject)
+    ? gameObject.uniforms.modelViewMatrix.value
+    : mat4.create();
+
+  const projectionMatrix = gameObject.projectionMatrix ?? mat4.create();
+
+  const positions = toCoordArray(gameObject.positions ?? []).map(([x, y]) =>
+    vec4.fromValues(x, y, 0, 0)
+  );
+
+  const composedMatrix = mat4.create();
+  mat4.multiply(composedMatrix, projectionMatrix, modelViewMatrix);
+
+  printMatrix("PROJECTION", projectionMatrix);
+  printMatrix("MODEL", modelViewMatrix);
+  printMatrix("COMPOSED", composedMatrix);
+
+  console.log("POSITIONS", gameObject.positions);
+
+  for (const position of positions) {
+    const glPosition = vec4.create();
+    vec4.transformMat4(glPosition, position, composedMatrix);
+    printVector("GL position", glPosition);
+  }
+
   const offset = 0;
   gl.drawArrays(gameObject.drawMode, offset, gameObject.vertexCount);
 };
@@ -589,8 +650,8 @@ const isSingleColor = <TMultiColor extends Color[]>(
 
 const getGameObjectMaterial = (
   material: RectangleMaterial,
-  width: number,
-  height: number
+  width?: number,
+  height?: number
 ): GameObjectMaterial => {
   if (material.type === "color") {
     if (isSingleColor(material.color)) {
@@ -613,10 +674,10 @@ const getGameObjectMaterial = (
     const textureWidth = material.texture.width;
     const textureHeight = material.texture.height;
     const scale = material.scale ?? 1;
-    const actualWidth = width / textureWidth / scale;
-    const actualHeight = height / textureHeight / scale;
-    const xOffset = ((material.xOffset ?? 0) * width) / textureWidth / scale;
-    const yOffset = ((material.yOffset ?? 0) * height) / textureHeight / scale;
+    const actualWidth = 120 / textureWidth / scale;
+    const actualHeight = 120 / textureHeight / scale;
+    const xOffset = ((material.xOffset ?? 0) * 120) / textureWidth / scale;
+    const yOffset = ((material.yOffset ?? 0) * 120) / textureHeight / scale;
 
     const textureCoordinates = [
       xOffset + actualWidth,
@@ -635,6 +696,15 @@ const getGameObjectMaterial = (
       textureCoordinates,
     };
   }
+};
+
+const isTransformable2DGameObject = (
+  obj: any
+): obj is Transformable2DGameObject => {
+  if ("value" in obj) {
+    return true;
+  }
+  return false;
 };
 
 const createTriangle =
@@ -687,12 +757,36 @@ const createTriangle =
         },
         colorAttribute,
       ],
+      positions,
     };
 
     gameObjects.push(gameObject);
 
     return gameObject;
   };
+
+const printPositions = (msg: string, positions: number[]) => {
+  const toPairs = <T>(arr: T[]) => {
+    const pairs = [];
+    let pair = [];
+    for (const pos of positions) {
+      pair.push(pos);
+      if (pair.length === 2) {
+        pairs.push(pair);
+        pair = [];
+      }
+    }
+    return pairs;
+  };
+
+  console.log(msg);
+
+  console.log(
+    toPairs(positions)
+      .map(([x, y]) => `${x},${y}`)
+      .join("; ")
+  );
+};
 
 const createRectangle =
   (
@@ -720,6 +814,8 @@ const createRectangle =
       x,
       y,
     ];
+
+    printPositions("POSITIONS", positions);
     const material = getGameObjectMaterial(rectangleMaterial, width, height);
 
     const modelViewMatrix = initializeModelViewMatrix();
@@ -737,11 +833,6 @@ const createRectangle =
 
     const program =
       material.type === "color" ? colorShaderProgram : textureShaderProgram;
-    const screenSizeUniform: GameObjectUniform = {
-      type: "2fv",
-      location: program.uniformLocations.screenSize,
-      value: screenSize,
-    };
     const modelViewMatrixUniform: UniformMatrix4fv = {
       type: "Matrix4fv",
       location: program.uniformLocations.modelViewMatrix,
@@ -760,7 +851,6 @@ const createRectangle =
       vertexCount: 4,
       shaderProgram: program.program,
       uniforms: {
-        screenSize: screenSizeUniform,
         modelViewMatrix: modelViewMatrixUniform,
         projectionMatrix: projectionMatrixUniform,
         ...materialUniforms,
@@ -775,6 +865,79 @@ const createRectangle =
       ],
       texture:
         material.type === "texture" ? material.texture.texture : undefined,
+      positions,
+    };
+
+    gameObjects.push(gameObject);
+
+    return gameObject;
+  };
+
+const createRectanglePos =
+  (
+    gl: WebGLRenderingContext,
+    screenSize: vec2,
+    colorShaderProgram: ColorShaderProgram,
+    textureShaderProgram: TextureShaderProgram,
+    gameObjects: GameObject[],
+    projectionMatrix: mat4
+  ) =>
+  (
+    positions: number[],
+    rectangleMaterial: RectangleMaterial
+  ): Transformable2DGameObject => {
+    printPositions("POSITIONS", positions);
+    const material = getGameObjectMaterial(rectangleMaterial);
+
+    const modelViewMatrix = initializeModelViewMatrix();
+    const positionBuffer = initializeBuffer(gl, positions);
+    const materialUniforms = initializeMaterialUniforms(
+      textureShaderProgram,
+      material
+    );
+    const materialAttributes = initializeMaterialAttributes(
+      gl,
+      colorShaderProgram,
+      textureShaderProgram,
+      material
+    );
+
+    const program =
+      material.type === "color" ? colorShaderProgram : textureShaderProgram;
+    const modelViewMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: program.uniformLocations.modelViewMatrix,
+      transpose: false,
+      value: modelViewMatrix,
+    };
+    const projectionMatrixUniform: UniformMatrix4fv = {
+      type: "Matrix4fv",
+      location: program.uniformLocations.projectionMatrix,
+      transpose: false,
+      value: projectionMatrix,
+    };
+
+    const gameObject: Transformable2DGameObject = {
+      drawMode: gl.TRIANGLE_STRIP,
+      vertexCount: 4,
+      shaderProgram: program.program,
+      uniforms: {
+        modelViewMatrix: modelViewMatrixUniform,
+        projectionMatrix: projectionMatrixUniform,
+        ...materialUniforms,
+      },
+      attributes: [
+        {
+          location: program.attribLocations.position,
+          size: vec2AttribSize,
+          buffer: positionBuffer,
+        },
+        ...materialAttributes,
+      ],
+      texture:
+        material.type === "texture" ? material.texture.texture : undefined,
+      positions,
+      projectionMatrix,
     };
 
     gameObjects.push(gameObject);
@@ -847,6 +1010,7 @@ const createCircle =
         },
         colorAttribute,
       ],
+      positions,
     };
 
     gameObjects.push(gameObject);
@@ -1055,11 +1219,70 @@ const scale2D = (value: number, gameObject: Transformable2DGameObject) => {
   );
 };
 
+const printMatrix = (msg: string, matrix: mat4) => {
+  const toCell = (val: number): string => {
+    const str = val.toString();
+    const spacing = 24 - str.length;
+    return str + new Array(spacing).fill(" ").join("");
+  };
+
+  console.log(msg);
+  console.log(
+    toCell(matrix[0]),
+    toCell(matrix[4]),
+    toCell(matrix[8]),
+    toCell(matrix[12])
+  );
+  console.log(
+    toCell(matrix[1]),
+    toCell(matrix[5]),
+    toCell(matrix[9]),
+    toCell(matrix[13])
+  );
+  console.log(
+    toCell(matrix[2]),
+    toCell(matrix[6]),
+    toCell(matrix[10]),
+    toCell(matrix[14])
+  );
+  console.log(
+    toCell(matrix[3]),
+    toCell(matrix[7]),
+    toCell(matrix[11]),
+    toCell(matrix[15])
+  );
+};
+
+const printVector = (msg: string, vector: vec4) => {
+  const toCell = (val: number): string => {
+    const str = val.toString();
+    const spacing = 24 - str.length;
+    return str + new Array(spacing).fill(" ").join("");
+  };
+
+  console.log(msg);
+  console.log(
+    toCell(vector[0]),
+    toCell(vector[1]),
+    toCell(vector[2]),
+    toCell(vector[3])
+  );
+};
+
 const rotate2D = (value: number, gameObject: Transformable2DGameObject) => {
   const modelViewMatrix = gameObject.uniforms.modelViewMatrix.value;
 
+  //printMatrix("MODEL", modelViewMatrix);
+
   mat4.rotateZ(modelViewMatrix, modelViewMatrix, value);
+
+  //printMatrix("MODEL", modelViewMatrix);
 };
+
+const isCanvas = (
+  canvas: HTMLCanvasElement | OffscreenCanvas
+): canvas is HTMLCanvasElement =>
+  "clientWidth" in canvas && "clientHeight" in canvas;
 
 export const initializeScene = (
   gl: WebGLRenderingContext,
@@ -1075,6 +1298,9 @@ export const initializeScene = (
   const combinedOptions = { ...defaultSceneOptions, ...options };
 
   initializeDepth(gl, combinedOptions);
+  if (!isCanvas(gl.canvas)) {
+    throw new Error("Canvas is not canvas");
+  }
   const screenSize = new Float32Array([
     gl.canvas.clientWidth,
     gl.canvas.clientHeight,
@@ -1099,6 +1325,14 @@ export const initializeScene = (
       projectionMatrix
     ),
     createRectangle: createRectangle(
+      gl,
+      screenSize,
+      colorShaderProgram,
+      textureShaderProgram,
+      gameObjects,
+      projectionMatrix
+    ),
+    createRectanglePos: createRectanglePos(
       gl,
       screenSize,
       colorShaderProgram,

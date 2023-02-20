@@ -1,5 +1,5 @@
 export const texturePolygonVsSource = `
-  attribute vec2 position;
+  attribute vec4 aPosition;
   attribute vec2 aTextureCoord;
 
   uniform vec2 screenSize;
@@ -9,10 +9,7 @@ export const texturePolygonVsSource = `
   varying highp vec2 vTextureCoord;
 
   void main(void) {
-    vec4 screenTransform =
-      vec4(2.0 / screenSize.x, -2.0 / screenSize.y, -1.0, 1.0);
-    vec4 calculatedPosition = vec4(position * screenTransform.xy + screenTransform.zw, 0.0, 1.0);
-    gl_Position = uProjectionMatrix * uModelViewMatrix * calculatedPosition;
+    gl_Position = uProjectionMatrix * uModelViewMatrix * aPosition;
     vTextureCoord = aTextureCoord;
   }
 `;
