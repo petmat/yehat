@@ -1,4 +1,4 @@
-import { Color } from ".";
+import { Color } from "./legacy";
 
 export const Colors = {
   White: [1.0, 1.0, 1.0, 1.0] as Color,

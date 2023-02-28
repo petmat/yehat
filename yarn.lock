@@ -942,6 +942,11 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-17.0.15.tgz#97779282c09c09577120a2162e71d8380003590a"
   integrity sha512-zWt4SDDv1S9WRBNxLFxFRHxdD9tvH8f5/kg5/IaLFdnSNXsDY4eL3Q3XXN+VxUnWIhyVFDwcsmAprvwXoM/ClA==
 
+"@types/offscreencanvas@^2019.7.0":
+  version "2019.7.0"
+  resolved "https://registry.yarnpkg.com/@types/offscreencanvas/-/offscreencanvas-2019.7.0.tgz#e4a932069db47bb3eabeb0b305502d01586fa90d"
+  integrity sha512-PGcyveRIpL1XIqK8eBsmRBt76eFgtzuPiSTyKHZxnGemp2yzGzWpjYKAfK3wIMiU7eH+851yEpiuP8JZerTmWg==
+
 "@types/parse-json@^4.0.0":
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/@types/parse-json/-/parse-json-4.0.0.tgz#2f8bb441434d163b35fb8ffdccd7138927ffb8c0"
@@ -1834,6 +1839,11 @@ format@^0.2.0:
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/format/-/format-0.2.2.tgz#d6170107e9efdc4ed30c9dc39016df942b5cb58b"
   integrity sha1-1hcBB+nv3E7TDJ3DkBbflCtctYs=
+
+fp-ts@^2.13.1:
+  version "2.13.1"
+  resolved "https://registry.yarnpkg.com/fp-ts/-/fp-ts-2.13.1.tgz#1bf2b24136cca154846af16752dc29e8fa506f2a"
+  integrity sha512-0eu5ULPS2c/jsa1lGFneEFFEdTbembJv8e4QKXeVJ3lm/5hyve06dlKZrpxmMwJt6rYen7sxmHHK2CLaXvWuWQ==
 
 fs.realpath@^1.0.0:
   version "1.0.0"

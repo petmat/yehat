@@ -1,0 +1,18 @@
+{
+  "name": "yehat-example-rotate2",
+  "version": "1.0.0",
+  "description": "Yehat Rotate2 example",
+  "main": "index.js",
+  "author": "Matti Petrelius",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn parcel src/index.html"
+  },
+  "devDependencies": {
+    "parcel": "^2.2.1",
+    "yehat": "0.0.1"
+  },
+  "dependencies": {
+    "fp-ts": "^2.13.1"
+  }
+}
