@@ -63,8 +63,7 @@ interface SceneWithVertexBuffer {
 
 const degreesPerSecond = 90.0;
 
-const hasElement = (el: Option<HTMLElement>): Either<string, HTMLElement> =>
-  E.fromOption(() => "Element not found")(el);
+const hasElement = E.fromOption(() => "Element not found");
 
 const isCanvas = flow(
   E.fromPredicate(
@@ -79,18 +78,14 @@ const getCanvasElement = (
 ): ((doc: Document) => Either<string, HTMLCanvasElement>) =>
   flow(getElementById(elementId), hasElement, E.chain(isCanvas));
 
-const getWebGLContextFromCanvas = (
-  glCanvasE: Either<string, HTMLCanvasElement>
-): Either<string, WebGLRenderingContext> =>
-  pipe(
-    glCanvasE,
-    E.chain(
-      flow(
-        getWebGLContext,
-        E.fromOption(() => "Cannot get WebGL context")
-      )
-    )
-  );
+const getWebGLContextFromCanvas: (
+  e: Either<string, HTMLCanvasElement>
+) => Either<string, WebGLRenderingContext> = E.chain(
+  flow(
+    getWebGLContext,
+    E.fromOption(() => "Cannot get WebGL context")
+  )
+);
 
 const getShaderSource =
   (document: Document) =>
@@ -246,19 +241,19 @@ const initializeVertexBuffer = (
 ): Either<string, SceneWithVertexBuffer> => {
   return pipe(
     sceneE,
-    E.map(({ gl, ...scene }) => {
+    E.chain(({ gl, ...scene }) => {
       const vertexBuffer = gl.createBuffer();
-
-      if (!vertexBuffer) {
-        throw new Error("Cannot create buffer");
-      }
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, scene.vertexArray, gl.STATIC_DRAW);
-      const wat = { gl, ...scene, vertexBuffer };
-      console.log("WAT", wat, vertexBuffer);
-      return wat;
-    })
+      return pipe(
+        E.fromNullable("Cannot create buffer")(vertexBuffer),
+        E.map((b) => ({ ...scene, gl, vertexBuffer: b }))
+      );
+    }),
+    E.map(
+      tap(({ gl, vertexBuffer, vertexArray }) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+      })
+    )
   );
 };
 
@@ -266,18 +261,22 @@ const calculateRotation = (currentAngle: number) => {
   const radians = (currentAngle * Math.PI) / 180.0;
   return [Math.sin(radians), Math.cos(radians)];
 };
+const calculateDeltaAngle = (previousTime: number, currentTime: number) =>
+  ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
 
 const updateScene: (
   s: Either<string, SceneWithVertexBuffer>
 ) => Either<string, SceneWithVertexBuffer> = flow(
-  E.map((scene) => {
-    const currentRotation = calculateRotation(scene.currentAngle);
-    const deltaAngle =
-      ((scene.currentTime - scene.previousTime) / 1000.0) * degreesPerSecond;
-    const currentAngle = (scene.currentAngle + deltaAngle) % 360;
-    const previousTime = scene.currentTime;
-
-    return { ...scene, currentRotation, currentAngle, previousTime };
+  E.map(({ previousTime, currentTime, ...scene }) => {
+    return {
+      ...scene,
+      currentRotation: calculateRotation(scene.currentAngle),
+      currentAngle:
+        (scene.currentAngle + calculateDeltaAngle(previousTime, currentTime)) %
+        360,
+      previousTime: currentTime,
+      currentTime,
+    };
   })
 );
 
@@ -323,33 +322,36 @@ const draw = ({ gl, program, ...scene }: SceneWithVertexBuffer) => {
   gl.drawArrays(gl.TRIANGLES, 0, scene.vertexCount);
 };
 
-const animateScene = (sceneE: Either<string, SceneWithVertexBuffer>) =>
+const tap =
+  <T>(f: (a: T) => void) =>
+  (a: T) => {
+    f(a);
+    return a;
+  };
+
+const drawScene = E.map(tap(draw));
+
+const processGameTick = (sceneE: Either<string, SceneWithVertexBuffer>) =>
   pipe(
-    requestAnimationFrameTask,
-    T.chain((currentTime) =>
+    sceneE,
+    updateScene,
+    drawScene,
+    T.of,
+    T.chain((e) =>
       pipe(
-        pipe(
-          sceneE,
-          E.map((scene) => {
-            draw(scene);
-            return scene;
-          })
-        ),
-        E.map((scene) => {
-          return { ...scene, currentTime };
-        }),
-        processGameTick
+        requestAnimationFrameTask,
+        T.map((currentTime) =>
+          pipe(
+            e,
+            E.map((scene) => ({ ...scene, currentTime }))
+          )
+        )
       )
-    )
+    ),
+    T.chain(processGameTick)
   );
 
-const processGameTick = (
-  sceneE: Either<string, SceneWithVertexBuffer>
-): TaskEither<string, SceneWithVertexBuffer> => {
-  return pipe(sceneE, updateScene, animateScene);
-};
-
-const startup: (d: Document) => TaskEither<string, SceneWithContext> = flow(
+const startup = flow(
   getCanvasElement("glcanvas"),
   getWebGLContextFromCanvas,
   getShaderSources,
