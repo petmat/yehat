@@ -4,9 +4,9 @@ import { Option } from "fp-ts/Option";
 
 export const addEventListener =
   <K extends keyof WindowEventMap>(type: K) =>
-  (window: Window) =>
   (listener: (this: Window, ev: WindowEventMap[K]) => any) =>
-  (options: AddEventListenerOptions) => {
+  (options: AddEventListenerOptions) =>
+  (window: Window) => {
     window.addEventListener(type, listener, options);
   };
 

@@ -2,10 +2,8 @@ import { flow, pipe } from "fp-ts/function";
 import * as E from "fp-ts/Either";
 import { Either } from "fp-ts/Either";
 import * as A from "fp-ts/Array";
-import { Option } from "fp-ts/Option";
 import { Task } from "fp-ts/Task";
 import * as T from "fp-ts/Task";
-import { TaskEither } from "fp-ts/TaskEither";
 
 import { addLoadEventListener, getElementById, getWebGLContext } from "yehat";
 
@@ -41,27 +39,21 @@ interface SceneWithContext {
   previousTime: number;
   currentTime: number;
   vertexArray: Float32Array;
+  degreesPerSecond: number;
   gl: WebGLRenderingContext;
   program: WebGLProgram;
 }
 
-interface SceneWithVertexBuffer {
-  aspectRatio: number;
-  currentScale: number[];
-  currentRotation: number[];
-  currentTranslation: number[];
-  vertexNumComponents: number;
-  vertexCount: number;
-  currentAngle: number;
-  previousTime: number;
-  currentTime: number;
-  vertexArray: Float32Array;
-  gl: WebGLRenderingContext;
-  program: WebGLProgram;
+type SceneWithVertexBuffer = SceneWithContext & {
   vertexBuffer: WebGLBuffer;
-}
+};
 
-const degreesPerSecond = 90.0;
+const tap =
+  <T>(f: (a: T) => void) =>
+  (a: T) => {
+    f(a);
+    return a;
+  };
 
 const hasElement = E.fromOption(() => "Element not found");
 
@@ -73,14 +65,10 @@ const isCanvas = flow(
   E.map((e) => e as unknown as HTMLCanvasElement)
 );
 
-const getCanvasElement = (
-  elementId: string
-): ((doc: Document) => Either<string, HTMLCanvasElement>) =>
+const getCanvasElement = (elementId: string) =>
   flow(getElementById(elementId), hasElement, E.chain(isCanvas));
 
-const getWebGLContextFromCanvas: (
-  e: Either<string, HTMLCanvasElement>
-) => Either<string, WebGLRenderingContext> = E.chain(
+const getWebGLContextFromCanvas = E.chain(
   flow(
     getWebGLContext,
     E.fromOption(() => "Cannot get WebGL context")
@@ -88,8 +76,8 @@ const getWebGLContextFromCanvas: (
 );
 
 const getShaderSource =
-  (document: Document) =>
-  (info: ShaderInfo): Either<string, ShaderInfoWithSource> => {
+  (info: ShaderInfo) =>
+  (document: Document): Either<string, ShaderInfoWithSource> => {
     return pipe(
       document,
       getElementById(info.id),
@@ -118,7 +106,10 @@ const getShaderSources = (glE: Either<string, WebGLRenderingContext>) => {
           id: "fragment-shader",
         },
       ];
-      const bar = pipe(shaderInfos, A.map(getShaderSource(document)));
+      const bar = pipe(
+        shaderInfos,
+        A.map((source) => getShaderSource(source)(document))
+      );
       const wtf = bar.reduce<Either<string, ShaderSources>>(
         (acc, v) =>
           pipe(
@@ -207,7 +198,7 @@ const getInitialScene = (
 ): Either<string, SceneWithContext> =>
   pipe(
     programE,
-    E.map((program) => {
+    E.map((program): SceneWithContext => {
       const {
         gl: { canvas },
       } = program;
@@ -230,54 +221,70 @@ const getInitialScene = (
         previousTime: 0,
         currentTime: 0,
         vertexArray,
+        degreesPerSecond: 90,
         program: program.program,
         gl: program.gl,
       };
     })
   );
 
-const initializeVertexBuffer = (
-  sceneE: Either<string, SceneWithContext>
-): Either<string, SceneWithVertexBuffer> => {
-  return pipe(
-    sceneE,
-    E.chain(({ gl, ...scene }) => {
-      const vertexBuffer = gl.createBuffer();
-      return pipe(
-        E.fromNullable("Cannot create buffer")(vertexBuffer),
-        E.map((b) => ({ ...scene, gl, vertexBuffer: b }))
-      );
-    }),
-    E.map(
-      tap(({ gl, vertexBuffer, vertexArray }) => {
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
-      })
+const createVertexBuffer = E.chain(
+  ({ gl, ...scene }: SceneWithContext): Either<string, SceneWithVertexBuffer> =>
+    pipe(
+      gl.createBuffer(),
+      E.fromNullable("Cannot create buffer"),
+      E.map((b) => ({ ...scene, gl, vertexBuffer: b }))
     )
-  );
+);
+
+const bindVertexBuffer = ({
+  gl,
+  vertexBuffer,
+  vertexArray,
+}: SceneWithVertexBuffer): void => {
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
 };
+
+const initializeVertexBuffer = flow(
+  createVertexBuffer,
+  E.map(tap(bindVertexBuffer))
+);
 
 const calculateRotation = (currentAngle: number) => {
   const radians = (currentAngle * Math.PI) / 180.0;
   return [Math.sin(radians), Math.cos(radians)];
 };
-const calculateDeltaAngle = (previousTime: number, currentTime: number) =>
-  ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
+const calculateDeltaAngle =
+  (previousTime: number) =>
+  (currentTime: number) =>
+  (degreesPerSecond: number) =>
+    ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
 
 const updateScene: (
   s: Either<string, SceneWithVertexBuffer>
 ) => Either<string, SceneWithVertexBuffer> = flow(
-  E.map(({ previousTime, currentTime, ...scene }) => {
-    return {
-      ...scene,
-      currentRotation: calculateRotation(scene.currentAngle),
-      currentAngle:
-        (scene.currentAngle + calculateDeltaAngle(previousTime, currentTime)) %
-        360,
-      previousTime: currentTime,
+  E.map(
+    ({
+      previousTime,
       currentTime,
-    };
-  })
+      currentAngle,
+      degreesPerSecond,
+      ...scene
+    }) => {
+      return {
+        ...scene,
+        currentRotation: calculateRotation(currentAngle),
+        currentAngle:
+          (currentAngle +
+            calculateDeltaAngle(previousTime)(currentTime)(degreesPerSecond)) %
+          360,
+        previousTime: currentTime,
+        currentTime,
+        degreesPerSecond,
+      };
+    }
+  )
 );
 
 const requestAnimationFrameTask: Task<number> = () =>
@@ -322,13 +329,6 @@ const draw = ({ gl, program, ...scene }: SceneWithVertexBuffer) => {
   gl.drawArrays(gl.TRIANGLES, 0, scene.vertexCount);
 };
 
-const tap =
-  <T>(f: (a: T) => void) =>
-  (a: T) => {
-    f(a);
-    return a;
-  };
-
 const drawScene = E.map(tap(draw));
 
 const processGameTick = (sceneE: Either<string, SceneWithVertexBuffer>) =>
@@ -370,4 +370,4 @@ const onLoad = (): void => {
   });
 };
 
-addLoadEventListener(window)(onLoad)({ capture: false });
+addLoadEventListener(onLoad)({ capture: false })(window);
