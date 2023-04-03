@@ -2,33 +2,40 @@ import { flow, pipe } from "fp-ts/function";
 import * as E from "fp-ts/Either";
 import { Either } from "fp-ts/Either";
 import * as A from "fp-ts/Array";
-import { Task } from "fp-ts/Task";
 import * as T from "fp-ts/Task";
+import { TaskEither } from "fp-ts/TaskEither";
 
-import { addLoadEventListener, getElementById, getWebGLContext } from "yehat";
+import { tap } from "yehat/src/v2/fn";
+import {
+  addLoadEventListener,
+  getCanvasElement,
+  getWebGLContext,
+  getElementText,
+  requestAnimationFrameTask,
+} from "yehat/src/v2/web";
+import { ShaderType, shaderTypeToWebGLShaderType } from "yehat/src/v2/core";
 
 interface ShaderInfo {
-  type: number;
+  type: ShaderType;
   id: string;
 }
 
-interface ShaderInfoWithSource {
-  type: number;
-  id: string;
+type ShaderSource = {
+  type: ShaderType;
   source: string;
-}
+};
 
-interface ShaderSources {
+interface RenderingContextWithShaderSources {
   gl: WebGLRenderingContext;
-  sources: ShaderInfoWithSource[];
+  sources: ShaderSource[];
 }
 
-interface ShaderProgram {
+interface RenderingContextWithProgram {
   gl: WebGLRenderingContext;
   program: WebGLProgram;
 }
 
-interface SceneWithContext {
+type SceneWithoutVertexBuffer = RenderingContextWithProgram & {
   aspectRatio: number;
   currentScale: number[];
   currentRotation: number[];
@@ -40,165 +47,144 @@ interface SceneWithContext {
   currentTime: number;
   vertexArray: Float32Array;
   degreesPerSecond: number;
-  gl: WebGLRenderingContext;
-  program: WebGLProgram;
-}
+};
 
-type SceneWithVertexBuffer = SceneWithContext & {
+type Scene = SceneWithoutVertexBuffer & {
   vertexBuffer: WebGLBuffer;
 };
 
-const tap =
-  <T>(f: (a: T) => void) =>
-  (a: T) => {
-    f(a);
-    return a;
-  };
-
-const hasElement = E.fromOption(() => "Element not found");
-
-const isCanvas = flow(
-  E.fromPredicate(
-    (e: HTMLElement) => "getContext" in e,
-    () => "Element is not a canvas"
-  ),
-  E.map((e) => e as unknown as HTMLCanvasElement)
-);
-
-const getCanvasElement = (elementId: string) =>
-  flow(getElementById(elementId), hasElement, E.chain(isCanvas));
-
-const getWebGLContextFromCanvas = E.chain(
-  flow(
-    getWebGLContext,
-    E.fromOption(() => "Cannot get WebGL context")
-  )
-);
-
 const getShaderSource =
-  (info: ShaderInfo) =>
-  (document: Document): Either<string, ShaderInfoWithSource> => {
-    return pipe(
+  (document: Document) =>
+  ({ id, type }: ShaderInfo): Either<string, ShaderSource> =>
+    pipe(
       document,
-      getElementById(info.id),
-      E.fromOption(() => `Shader element not found with ID ${info.id}`),
-      E.chain((el) =>
-        E.fromNullable("Shader element does not have text")(el.firstChild)
-      ),
-      E.chain((childNode) =>
-        E.fromNullable("Shader element text is empty")(childNode.nodeValue)
-      ),
-      E.map((source) => ({ ...info, source }))
+      getElementText(id),
+      E.chain(E.fromOption(() => "Shader element text is empty")),
+      E.map((source) => ({ type, source }))
+    );
+
+const getShaderInfos = (gl: WebGLRenderingContext): ShaderInfo[] => [
+  {
+    type: ShaderType.Vertex,
+    id: "vertex-shader",
+  },
+  {
+    type: ShaderType.Fragment,
+    id: "fragment-shader",
+  },
+];
+
+const addShaderSourcesToRenderingContext = (
+  gl: WebGLRenderingContext
+): RenderingContextWithShaderSources => ({ gl, sources: [] });
+
+const reduceShaderSources =
+  (glE: Either<string, WebGLRenderingContext>) =>
+  (
+    shaderSources: E.Either<string, ShaderSource>[]
+  ): Either<string, RenderingContextWithShaderSources> =>
+    pipe(
+      shaderSources,
+      A.reduce(
+        pipe(glE, E.map(addShaderSourcesToRenderingContext)),
+        (accE, shaderSourceE) =>
+          pipe(
+            accE,
+            E.chain(({ gl, sources }) =>
+              pipe(
+                shaderSourceE,
+                E.map((source) => ({
+                  gl,
+                  sources: [...sources, source],
+                }))
+              )
+            )
+          )
+      )
+    );
+
+const getShaderSources = (
+  glE: Either<string, WebGLRenderingContext>
+): Either<string, RenderingContextWithShaderSources> =>
+  pipe(
+    glE,
+    E.chain((gl) => {
+      return pipe(
+        gl,
+        getShaderInfos,
+        A.map(getShaderSource(document)),
+        reduceShaderSources(glE)
+      );
+    })
+  );
+
+const compileShader =
+  ({ type, source }: ShaderSource) =>
+  (gl: WebGLRenderingContext): Either<string, WebGLShader> => {
+    return pipe(
+      type,
+      shaderTypeToWebGLShaderType(gl),
+      gl.createShader.bind(gl),
+      E.fromNullable("Cannot create shader"),
+      E.map((shader) => {
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return shader;
+      }),
+      E.chain(
+        E.fromPredicate(
+          (shader) => !!gl.getShaderParameter(shader, gl.COMPILE_STATUS),
+          (shader) =>
+            `Error compiling ${
+              type === ShaderType.Vertex ? "vertex" : "fragment"
+            } shader:
+            ${gl.getShaderInfoLog(shader)}`
+        )
+      )
     );
   };
 
-const getShaderSources = (glE: Either<string, WebGLRenderingContext>) => {
-  const foo = pipe(
-    glE,
-    E.chain((gl) => {
-      const shaderInfos: ShaderInfo[] = [
-        {
-          type: gl.VERTEX_SHADER,
-          id: "vertex-shader",
-        },
-        {
-          type: gl.FRAGMENT_SHADER,
-          id: "fragment-shader",
-        },
-      ];
-      const bar = pipe(
-        shaderInfos,
-        A.map((source) => getShaderSource(source)(document))
-      );
-      const wtf = bar.reduce<Either<string, ShaderSources>>(
-        (acc, v) =>
-          pipe(
-            acc,
-            E.chain((g) =>
-              pipe(
-                v,
-                E.map((b) => ({ gl: g.gl, sources: [...g.sources, b] }))
-              )
-            )
-          ),
-        pipe(
-          glE,
-          E.map((a) => ({ gl: a, sources: [] }))
-        )
-      );
-      return wtf;
-    })
-  );
-  return foo;
-};
-
-const compileShader =
-  ({ type, source }: ShaderInfoWithSource) =>
-  (gl: WebGLRenderingContext) => {
-    const shader = gl.createShader(type);
-
-    if (!shader) {
-      throw new Error("Cannot create shader");
-    }
-
-    if (!source) {
-      throw new Error("Cannot get shader code");
-    }
-
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.log(
-        `Error compiling ${
-          type === gl.VERTEX_SHADER ? "vertex" : "fragment"
-        } shader:`
-      );
-      console.log(gl.getShaderInfoLog(shader));
-    }
-
-    return shader;
-  };
-
 const buildShaderProgram = (
-  shaderSourcesE: Either<string, ShaderSources>
-): Either<string, ShaderProgram> => {
-  const hi = pipe(
+  shaderSourcesE: Either<string, RenderingContextWithShaderSources>
+): Either<string, RenderingContextWithProgram> =>
+  pipe(
     shaderSourcesE,
-    E.map(({ gl, sources }) => {
-      const program = gl.createProgram();
-      console.log("PRÖÖGGG", program);
-      if (!program) {
-        throw new Error("Cannot create shader program");
-      }
+    E.chain(({ gl, sources }) => {
+      return pipe(
+        gl.createProgram(),
+        E.fromNullable("Cannot create shader program"),
+        E.map((program) => {
+          sources.forEach((desc) => {
+            pipe(
+              compileShader(desc)(gl),
+              E.map((shader) => {
+                gl.attachShader(program, shader);
+              })
+            );
+          });
 
-      sources.forEach((desc) => {
-        const shader = compileShader(desc)(gl);
+          gl.linkProgram(program);
 
-        if (shader) {
-          gl.attachShader(program, shader);
-        }
-      });
-
-      gl.linkProgram(program);
-
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        console.log("Error linking shader program:");
-        console.log(gl.getProgramInfoLog(program));
-      }
-
-      return { gl, program };
+          return program;
+        }),
+        E.chain(
+          E.fromPredicate(
+            (program) => !!gl.getProgramParameter(program, gl.LINK_STATUS),
+            (program) => `Error linking shader program:
+            ${gl.getProgramInfoLog(program)}`
+          )
+        ),
+        E.map((program) => ({ gl, program }))
+      );
     })
   );
-  return hi;
-};
 
 const getInitialScene = (
-  programE: Either<string, ShaderProgram>
-): Either<string, SceneWithContext> =>
+  programE: Either<string, RenderingContextWithProgram>
+): Either<string, SceneWithoutVertexBuffer> =>
   pipe(
     programE,
-    E.map((program): SceneWithContext => {
+    E.map((program): SceneWithoutVertexBuffer => {
       const {
         gl: { canvas },
       } = program;
@@ -229,7 +215,7 @@ const getInitialScene = (
   );
 
 const createVertexBuffer = E.chain(
-  ({ gl, ...scene }: SceneWithContext): Either<string, SceneWithVertexBuffer> =>
+  ({ gl, ...scene }: SceneWithoutVertexBuffer): Either<string, Scene> =>
     pipe(
       gl.createBuffer(),
       E.fromNullable("Cannot create buffer"),
@@ -237,11 +223,7 @@ const createVertexBuffer = E.chain(
     )
 );
 
-const bindVertexBuffer = ({
-  gl,
-  vertexBuffer,
-  vertexArray,
-}: SceneWithVertexBuffer): void => {
+const bindVertexBuffer = ({ gl, vertexBuffer, vertexArray }: Scene): void => {
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
 };
@@ -261,9 +243,7 @@ const calculateDeltaAngle =
   (degreesPerSecond: number) =>
     ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
 
-const updateScene: (
-  s: Either<string, SceneWithVertexBuffer>
-) => Either<string, SceneWithVertexBuffer> = flow(
+const updateScene: (s: Either<string, Scene>) => Either<string, Scene> = flow(
   E.map(
     ({
       previousTime,
@@ -287,12 +267,7 @@ const updateScene: (
   )
 );
 
-const requestAnimationFrameTask: Task<number> = () =>
-  new Promise<number>((resolve) => {
-    requestAnimationFrame((time) => resolve(time));
-  });
-
-const draw = ({ gl, program, ...scene }: SceneWithVertexBuffer) => {
+const draw = ({ gl, program, ...scene }: Scene) => {
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
   gl.clearColor(0.8, 0.9, 1.0, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -331,7 +306,9 @@ const draw = ({ gl, program, ...scene }: SceneWithVertexBuffer) => {
 
 const drawScene = E.map(tap(draw));
 
-const processGameTick = (sceneE: Either<string, SceneWithVertexBuffer>) =>
+const processGameTick = (
+  sceneE: Either<string, Scene>
+): TaskEither<string, Scene> =>
   pipe(
     sceneE,
     updateScene,
@@ -353,7 +330,7 @@ const processGameTick = (sceneE: Either<string, SceneWithVertexBuffer>) =>
 
 const startup = flow(
   getCanvasElement("glcanvas"),
-  getWebGLContextFromCanvas,
+  E.chain(getWebGLContext),
   getShaderSources,
   buildShaderProgram,
   getInitialScene,
@@ -361,13 +338,11 @@ const startup = flow(
   processGameTick
 );
 
-const onLoad = (): void => {
-  const startupResultTE = startup(document)();
-  startupResultTE.then((startupResultE) => {
-    if (startupResultE._tag === "Left") {
-      throw new Error(startupResultE.left);
-    }
-  });
-};
+const onLoad = () =>
+  startup(document)().then(
+    E.mapLeft((startupResult) => {
+      throw new Error(startupResult);
+    })
+  );
 
 addLoadEventListener(onLoad)({ capture: false })(window);
