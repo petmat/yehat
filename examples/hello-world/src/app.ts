@@ -1,4 +1,4 @@
-import { Colors, getWebGLContext, initializeScene } from "yehat";
+import { Colors, getWebGLContext, initializeScene } from "yehat/src/v1/legacy";
 
 const main = async () => {
   const canvas = document.querySelector("#glCanvas");
