@@ -7,13 +7,17 @@ import { Task } from "fp-ts/lib/Task";
 
 export const addEventListener =
   <K extends keyof WindowEventMap>(type: K) =>
-  (listener: (this: Window, ev: WindowEventMap[K]) => any) =>
   (options: AddEventListenerOptions) =>
+  (listener: (this: Window, ev: WindowEventMap[K]) => any) =>
   (window: Window) => {
     window.addEventListener(type, listener, options);
   };
 
 export const addLoadEventListener = addEventListener("load");
+
+export const addLoadEventListenerWithDefaults = addLoadEventListener({
+  capture: false,
+});
 
 export const getElementById =
   (elementId: string) =>
@@ -69,5 +73,5 @@ export const getElementText =
 
 export const requestAnimationFrameTask: Task<number> = () =>
   new Promise<number>((resolve) => {
-    requestAnimationFrame((time) => resolve(time));
+    window.requestAnimationFrame((time) => resolve(time));
   });

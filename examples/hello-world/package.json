@@ -11,5 +11,8 @@
   "devDependencies": {
     "parcel": "^2.2.1",
     "yehat": "0.0.1"
+  },
+  "dependencies": {
+    "fp-ts": "^2.14.0"
   }
 }

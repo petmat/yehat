@@ -1,4 +1,17 @@
-import { Colors, getWebGLContext, initializeScene } from "yehat/src/v1/legacy";
+import { flow, pipe } from "fp-ts/lib/function";
+import * as E from "fp-ts/lib/Either";
+
+import {
+  Colors,
+  getWebGLContext as getWebGLContextV1,
+  initializeScene,
+} from "yehat/src/v1/legacy";
+import {
+  addLoadEventListenerWithDefaults,
+  getCanvasElement,
+  getWebGLContext,
+} from "yehat/src/v2/web";
+import { Either } from "fp-ts/lib/Either";
 
 const main = async () => {
   const canvas = document.querySelector("#glCanvas");
@@ -7,7 +20,7 @@ const main = async () => {
     throw new Error("Could not get canvas");
   }
 
-  const gl = getWebGLContext(canvas);
+  const gl = getWebGLContextV1(canvas);
   const {
     createRectangle,
     createRectanglePos,
@@ -100,4 +113,49 @@ const main = async () => {
   // requestAnimationFrame(render);
 };
 
-window.onload = () => main().catch(console.error);
+const buildYehatProgram = (
+  gl: WebGLRenderingContext
+): Either<string, YehatProgram> =>
+  pipe(
+    gl.createProgram(),
+    E.fromNullable("Cannot create shader program"),
+    E.map((program) => {
+      sources.forEach((desc) => {
+        pipe(
+          compileShader(desc)(gl),
+          E.map((shader) => {
+            gl.attachShader(program, shader);
+          })
+        );
+      });
+
+      gl.linkProgram(program);
+    }),
+    E.chain(
+      E.fromPredicate(
+        (program) => !!gl.getProgramParameter(program, gl.LINK_STATUS),
+        (program) => `Error linking shader program:
+            ${gl.getProgramInfoLog(program)}`
+      )
+    ),
+    E.map((program) => ({ webGLRenderingContext: gl, webGLProgram: program }))
+  );
+
+const startup = flow(
+  getCanvasElement("glcanvas"),
+  E.chain(getWebGLContext),
+  E.chain(buildYehatProgram),
+  E.chain(buildDefaultShaders),
+  E.chain(getInitialScene),
+  processGameTick
+);
+
+const onLoad = () =>
+  pipe(
+    startup(document),
+    E.mapLeft((error) => {
+      throw new Error(error);
+    })
+  );
+
+addLoadEventListenerWithDefaults(onLoad)(window);

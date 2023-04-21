@@ -4,38 +4,28 @@ import { Either } from "fp-ts/Either";
 import * as A from "fp-ts/Array";
 import * as T from "fp-ts/Task";
 import { TaskEither } from "fp-ts/TaskEither";
+import * as TE from "fp-ts/TaskEither";
 
 import { tap } from "yehat/src/v2/fn";
 import {
-  addLoadEventListener,
   getCanvasElement,
   getWebGLContext,
   getElementText,
+  addLoadEventListenerWithDefaults,
   requestAnimationFrameTask,
 } from "yehat/src/v2/web";
-import { ShaderType, shaderTypeToWebGLShaderType } from "yehat/src/v2/core";
+import {
+  ShaderType,
+  initializeYehatProgram,
+  shaderTypeToWebGLShaderType,
+} from "yehat/src/v2/core";
 
 interface ShaderInfo {
   type: ShaderType;
   id: string;
 }
 
-type ShaderSource = {
-  type: ShaderType;
-  source: string;
-};
-
-interface RenderingContextWithShaderSources {
-  gl: WebGLRenderingContext;
-  sources: ShaderSource[];
-}
-
-interface RenderingContextWithProgram {
-  gl: WebGLRenderingContext;
-  program: WebGLProgram;
-}
-
-type SceneWithoutVertexBuffer = RenderingContextWithProgram & {
+type SceneWithoutVertexBuffer = {
   aspectRatio: number;
   currentScale: number[];
   currentRotation: number[];
@@ -63,7 +53,7 @@ const getShaderSource =
       E.map((source) => ({ type, source }))
     );
 
-const getShaderInfos = (gl: WebGLRenderingContext): ShaderInfo[] => [
+const shaderInfos: ShaderInfo[] = [
   {
     type: ShaderType.Vertex,
     id: "vertex-shader",
@@ -103,20 +93,11 @@ const reduceShaderSources =
       )
     );
 
-const getShaderSources = (
-  glE: Either<string, WebGLRenderingContext>
-): Either<string, RenderingContextWithShaderSources> =>
-  pipe(
-    glE,
-    E.chain((gl) => {
-      return pipe(
-        gl,
-        getShaderInfos,
-        A.map(getShaderSource(document)),
-        reduceShaderSources(glE)
-      );
-    })
-  );
+const getShaderSources = (): Either<
+  string,
+  RenderingContextWithShaderSources
+> =>
+  pipe(shaderInfos, A.map(getShaderSource(document)), reduceShaderSources(glE));
 
 const compileShader =
   ({ type, source }: ShaderSource) =>
@@ -251,19 +232,17 @@ const updateScene: (s: Either<string, Scene>) => Either<string, Scene> = flow(
       currentAngle,
       degreesPerSecond,
       ...scene
-    }) => {
-      return {
-        ...scene,
-        currentRotation: calculateRotation(currentAngle),
-        currentAngle:
-          (currentAngle +
-            calculateDeltaAngle(previousTime)(currentTime)(degreesPerSecond)) %
-          360,
-        previousTime: currentTime,
-        currentTime,
-        degreesPerSecond,
-      };
-    }
+    }) => ({
+      ...scene,
+      currentRotation: calculateRotation(currentAngle),
+      currentAngle:
+        (currentAngle +
+          calculateDeltaAngle(previousTime)(currentTime)(degreesPerSecond)) %
+        360,
+      previousTime: currentTime,
+      currentTime,
+      degreesPerSecond,
+    })
   )
 );
 
@@ -331,18 +310,20 @@ const processGameTick = (
 const startup = flow(
   getCanvasElement("glcanvas"),
   E.chain(getWebGLContext),
-  getShaderSources,
-  buildShaderProgram,
+  E.chain((gl) =>
+    pipe(getShaderSources(), E.chain(initializeYehatProgram(gl)))
+  ),
   getInitialScene,
   initializeVertexBuffer,
   processGameTick
 );
 
 const onLoad = () =>
-  startup(document)().then(
-    E.mapLeft((startupResult) => {
-      throw new Error(startupResult);
+  pipe(
+    startup(document),
+    TE.mapLeft((error) => {
+      throw new Error(error);
     })
-  );
+  )();
 
-addLoadEventListener(onLoad)({ capture: false })(window);
+addLoadEventListenerWithDefaults(onLoad)(window);
