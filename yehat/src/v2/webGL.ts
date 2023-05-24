@@ -1,6 +1,7 @@
 import { Either } from "fp-ts/lib/Either";
 import * as E from "fp-ts/lib/Either";
 import { pipe } from "fp-ts/lib/function";
+import { logF } from "./fn";
 
 export const createShader =
   (gl: WebGLRenderingContext) =>
@@ -42,8 +43,7 @@ export const compileShader =
       E.chain(
         E.fromPredicate(
           () => !!gl.getShaderParameter(shader, gl.COMPILE_STATUS),
-          () => `Error compiling shader:
-${gl.getShaderInfoLog(shader)}`
+          () => `Error compiling shader: ${gl.getShaderInfoLog(shader)}`
         )
       )
     );
@@ -58,3 +58,9 @@ export const createProgram = (
     ),
     E.chain(E.fromNullable("Cannot create shader program"))
   );
+
+export const linkProgram =
+  (gl: WebGLRenderingContext) =>
+  (program: WebGLProgram): void => {
+    gl.linkProgram(program);
+  };
