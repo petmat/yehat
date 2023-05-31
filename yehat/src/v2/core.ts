@@ -12,16 +12,22 @@ import {
   setShaderSource,
 } from "./webGL";
 import { constant, flip, flow, pipe } from "fp-ts/lib/function";
-import { vec2 } from "gl-matrix";
+import { vec2, vec4 } from "gl-matrix";
 import { tap, tapE } from "./fn";
 import { TaskEither } from "fp-ts/lib/TaskEither";
 import { requestAnimationFrameTask } from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
+import { range } from "fp-ts/lib/ReadonlyNonEmptyArray";
 
 export enum ShaderType {
   Vertex,
   Fragment,
+}
+
+export enum DrawMode {
+  Triangles,
+  TriangleFan,
 }
 
 export interface ShaderSource {
@@ -43,13 +49,11 @@ export interface GameObject2DCreated {
   translation: vec2;
   scale: vec2;
   rotation: vec2;
+  color: vec4;
+  drawMode: DrawMode;
 }
 
-export type GameObject2DInitialized = {
-  vertices: Float32Array;
-  translation: vec2;
-  scale: vec2;
-  rotation: vec2;
+export type GameObject2DInitialized = GameObject2DCreated & {
   vertexBuffer: WebGLBuffer;
 };
 
@@ -193,6 +197,17 @@ export const initializeScene2D = <T extends GameData>(
     E.map((gameObjects) => ({ ...scene, isInitialized: true, gameObjects }))
   );
 
+const toWebGLDrawMode = (gl: WebGLRenderingContext) => (drawMode: DrawMode) => {
+  switch (drawMode) {
+    case DrawMode.Triangles:
+      return gl.TRIANGLES;
+    case DrawMode.TriangleFan:
+      return gl.TRIANGLE_FAN;
+    default:
+      throw new Error(`Unsupported draw mode: ${drawMode}`);
+  }
+};
+
 export const drawScene = <T extends GameData>(
   scene: YehatScene2DInitialized<T>
 ) => {
@@ -219,7 +234,7 @@ export const drawScene = <T extends GameData>(
     gl.uniform2fv(uScalingFactor, gameObject.scale);
     gl.uniform2fv(uRotationVector, gameObject.rotation);
     gl.uniform2fv(uTranslationVector, gameObject.translation);
-    gl.uniform4fv(uGlobalColor, [0.1, 0.7, 0.2, 1.0]);
+    gl.uniform4fv(uGlobalColor, gameObject.color);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
 
@@ -235,7 +250,11 @@ export const drawScene = <T extends GameData>(
       0
     );
 
-    gl.drawArrays(gl.TRIANGLES, 0, calculateVertexCount2D(gameObject));
+    gl.drawArrays(
+      toWebGLDrawMode(gl)(gameObject.drawMode),
+      0,
+      calculateVertexCount2D(gameObject)
+    );
   }
 
   return scene;
@@ -271,3 +290,31 @@ export const processGameTick =
       ),
       T.chain(processGameTick(updateScene))
     );
+
+// Shapes
+
+export const createSquareShape = () =>
+  new Float32Array([
+    -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
+  ]);
+
+export const getSquareDrawMode = () => DrawMode.Triangles;
+
+export const createTriangleShape = () =>
+  new Float32Array([0, 0.5, 0.5, -0.5, -0.5, -0.5]);
+
+export const getTriangleDrawMode = () => DrawMode.Triangles;
+
+export const createCircleShape = () =>
+  new Float32Array(
+    [
+      0.0,
+      0.0,
+      ...range(0, 30).map((i) => [
+        Math.cos((i * 2 * Math.PI) / 30) * 0.5,
+        Math.sin((i * 2 * Math.PI) / 30) * 0.5,
+      ]),
+    ].flat()
+  );
+
+export const getCircleDrawMode = () => DrawMode.TriangleFan;

@@ -1,8 +1,6 @@
-import { flow, pipe } from "fp-ts/lib/function";
+import { pipe } from "fp-ts/lib/function";
 import * as E from "fp-ts/lib/Either";
-import { Either } from "fp-ts/lib/Either";
 import * as TE from "fp-ts/lib/TaskEither";
-import { TaskEither } from "fp-ts/lib/TaskEither";
 
 import {
   addLoadEventListenerWithDefaults,
@@ -14,11 +12,17 @@ import {
   YehatContext,
   YehatScene2DCreated,
   YehatScene2DInitialized,
+  createCircleShape,
+  createSquareShape,
+  createTriangleShape,
+  getCircleDrawMode,
+  getSquareDrawMode,
+  getTriangleDrawMode,
   initializeDefaultYehatContext,
   initializeScene2D,
   processGameTick,
 } from "yehat/src/v2/core";
-import { vec2 } from "gl-matrix";
+import { vec2, vec4 } from "gl-matrix";
 
 interface HelloWorldGameData extends GameData {
   // this feels like it should not be here, but built into Yehat
@@ -39,17 +43,34 @@ const createScene = (
     webGLRenderingContext: { canvas },
   } = context;
   const aspectRatio = canvas.width / canvas.height;
-  // prettier-ignore
-  const vertexArray = new Float32Array([
-        -0.5, 0.5, 0.5, 0.5, 0.5, -0.5,
-        -0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
-      ]);
+
+  const scaleFactor = 0.3;
+
+  const circle = {
+    vertices: createCircleShape(),
+    translation: vec2.fromValues(-0.5, 0.0),
+    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
+    rotation: vec2.fromValues(0, 1),
+    color: vec4.fromValues(0.7, 0.1, 0.2, 1.0),
+    drawMode: getCircleDrawMode(),
+  };
+
+  const triangle = {
+    vertices: createTriangleShape(),
+    translation: vec2.fromValues(0.0, 0.0),
+    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
+    rotation: vec2.fromValues(0, 1),
+    color: vec4.fromValues(0.2, 0.1, 0.7, 1.0),
+    drawMode: getTriangleDrawMode(),
+  };
 
   const rectangle = {
-    vertices: vertexArray,
-    translation: vec2.fromValues(0.5, 0.5),
-    scale: vec2.fromValues(1.0 * 0.5, aspectRatio * 0.5),
+    vertices: createSquareShape(),
+    translation: vec2.fromValues(0.5, 0.0),
+    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
     rotation: vec2.fromValues(0, 1),
+    color: vec4.fromValues(0.1, 0.7, 0.2, 1.0),
+    drawMode: getSquareDrawMode(),
   };
 
   return {
@@ -62,7 +83,7 @@ const createScene = (
       currentAngle: 0.0,
       degreesPerSecond: 90,
     },
-    gameObjects: [rectangle],
+    gameObjects: [circle, triangle, rectangle],
   };
 };
 
@@ -86,11 +107,14 @@ const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
       degreesPerSecond,
       ...gameData
     },
+    gameObjects: [circle, triangle, rectangle],
   } = scene;
   return {
     ...scene,
     gameObjects: [
-      { ...scene.gameObjects[0], rotation: calculateRotation(currentAngle) },
+      circle,
+      triangle,
+      { ...rectangle, rotation: calculateRotation(currentAngle) },
     ],
     gameData: {
       ...gameData,
