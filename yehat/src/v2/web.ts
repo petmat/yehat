@@ -47,14 +47,19 @@ const hasElement = E.fromOption(() => "Element not found");
 
 const isCanvas = flow(
   E.fromPredicate(
-    (e: HTMLElement) => "getContext" in e,
+    (e: Element) => "getContext" in e,
     () => "Element is not a canvas"
   ),
   E.map((e) => e as unknown as HTMLCanvasElement)
 );
 
-export const getCanvasElement = (elementId: string) =>
-  flow(getElementById(elementId), hasElement, E.chain(isCanvas));
+export const querySelector =
+  (elementId: string) =>
+  (doc: Document): Option<Element> =>
+    pipe(elementId, doc.querySelector.bind(doc), O.fromNullable);
+
+export const getCanvasElement = (elementSelector: string) =>
+  flow(querySelector(elementSelector), hasElement, E.chain(isCanvas));
 
 export const getElementText =
   (elementId: string) =>

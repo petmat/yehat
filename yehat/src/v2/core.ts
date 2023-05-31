@@ -15,7 +15,12 @@ import { constant, flip, flow, pipe } from "fp-ts/lib/function";
 import { vec2, vec4 } from "gl-matrix";
 import { tap, tapE } from "./fn";
 import { TaskEither } from "fp-ts/lib/TaskEither";
-import { requestAnimationFrameTask } from "./web";
+import {
+  addLoadEventListenerWithDefaults,
+  getCanvasElement,
+  getWebGLContext,
+  requestAnimationFrameTask,
+} from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
 import { range } from "fp-ts/lib/ReadonlyNonEmptyArray";
@@ -64,15 +69,14 @@ export const calculateVertexCount2D = (gameObject: GameObject2D) =>
 
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
-  context: YehatContext;
   gameData: T;
   gameObjects: GameObject2DCreated[];
 }
 
 export interface YehatScene2DInitialized<T extends GameData = GameData> {
   isInitialized: true;
-  context: YehatContext;
   gameData: T;
+  context: YehatContext;
   gameObjects: GameObject2DInitialized[];
 }
 
@@ -182,20 +186,25 @@ const bindVertexBuffer =
     return gameObject;
   };
 
-export const initializeScene2D = <T extends GameData>(
-  scene: YehatScene2DCreated<T>
-): Either<string, YehatScene2DInitialized<T>> =>
-  pipe(
-    scene.gameObjects,
-    A.map(
-      flow(
-        createVertexBuffer2D(scene.context.webGLRenderingContext),
-        E.map(bindVertexBuffer(scene.context.webGLRenderingContext))
+export const initializeDefaultScene2D =
+  <T extends GameData>(gl: WebGLRenderingContext) =>
+  (scene: YehatScene2DCreated<T>): Either<string, YehatScene2DInitialized<T>> =>
+    pipe(
+      scene.gameObjects,
+      A.map(flow(createVertexBuffer2D(gl), E.map(bindVertexBuffer(gl)))),
+      A.sequence(E.Monad),
+      E.chain((gameObjects) =>
+        pipe(
+          initializeDefaultYehatContext(gl),
+          E.map((context) => ({
+            ...scene,
+            isInitialized: true,
+            gameObjects,
+            context,
+          }))
+        )
       )
-    ),
-    A.sequence(E.Monad),
-    E.map((gameObjects) => ({ ...scene, isInitialized: true, gameObjects }))
-  );
+    );
 
 const toWebGLDrawMode = (gl: WebGLRenderingContext) => (drawMode: DrawMode) => {
   switch (drawMode) {
@@ -318,3 +327,28 @@ export const createCircleShape = () =>
   );
 
 export const getCircleDrawMode = () => DrawMode.TriangleFan;
+
+export type Startup = (
+  gl: WebGLRenderingContext
+) => TaskEither<string, unknown>;
+
+const onLoad =
+  (canvasE: Either<string, HTMLCanvasElement>) => (startup: Startup) => () =>
+    pipe(
+      canvasE,
+      E.chain(getWebGLContext),
+      TE.fromEither,
+      TE.chain(startup),
+      TE.mapLeft((error) => {
+        throw new Error(error);
+      })
+    )();
+
+export const loadGame =
+  (window: Window) => (canvasSelector: string) => (startup: Startup) =>
+    pipe(
+      window,
+      addLoadEventListenerWithDefaults(
+        onLoad(getCanvasElement(canvasSelector)(document))(startup)
+      )
+    );

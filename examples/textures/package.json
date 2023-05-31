@@ -1,0 +1,14 @@
+{
+  "name": "textures",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "fp-ts": "^2.16.0",
+    "gl-matrix": "^3.4.3"
+  },
+  "devDependencies": {
+    "parcel": "^2.2.1",
+    "yehat": "0.0.1"
+  }
+}
