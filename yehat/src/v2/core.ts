@@ -1,8 +1,15 @@
+import { constant, flip, flow, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
-import { Either } from "fp-ts/lib/Either";
 import * as E from "fp-ts/lib/Either";
+import { Either } from "fp-ts/lib/Either";
+import { Option } from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
+import { Task } from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
+import { TaskEither } from "fp-ts/lib/TaskEither";
+
+import { vec2, vec4 } from "gl-matrix";
+
 import {
   attachShader,
   compileShader,
@@ -11,10 +18,7 @@ import {
   linkProgram,
   setShaderSource,
 } from "./webGL";
-import { constant, flip, flow, pipe } from "fp-ts/lib/function";
-import { vec2, vec4 } from "gl-matrix";
-import { tap, tapE } from "./fn";
-import { TaskEither } from "fp-ts/lib/TaskEither";
+import { tap, tapE } from "./utils";
 import {
   addLoadEventListenerWithDefaults,
   getCanvasElement,
@@ -23,7 +27,6 @@ import {
 } from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
-import { range } from "fp-ts/lib/ReadonlyNonEmptyArray";
 
 export enum ShaderType {
   Vertex,
@@ -56,13 +59,20 @@ export interface GameObject2DCreated {
   rotation: vec2;
   color: vec4;
   drawMode: DrawMode;
+  texture: Option<number>;
+  textureCoords: Float32Array;
 }
 
 export type GameObject2DInitialized = GameObject2DCreated & {
   vertexBuffer: WebGLBuffer;
+  textureCoordBuffer: WebGLBuffer;
 };
 
 export type GameObject2D = GameObject2DCreated | GameObject2DInitialized;
+
+export interface Texture {
+  url: string;
+}
 
 export const calculateVertexCount2D = (gameObject: GameObject2D) =>
   gameObject.vertices.length / VertexNumComponents2D;
@@ -70,6 +80,7 @@ export const calculateVertexCount2D = (gameObject: GameObject2D) =>
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
   gameData: T;
+  textures: Map<number, Texture>;
   gameObjects: GameObject2DCreated[];
 }
 
@@ -84,16 +95,28 @@ export type YehatScene2D<T extends GameData = GameData> =
   | YehatScene2DCreated<T>
   | YehatScene2DInitialized<T>;
 
-export const shaderTypeToWebGLShaderType =
+export const toWebGLShaderType =
   (gl: WebGLRenderingContext) => (shaderType: ShaderType) =>
     shaderType === ShaderType.Vertex ? gl.VERTEX_SHADER : gl.FRAGMENT_SHADER;
+
+export const toWebGLDrawMode =
+  (gl: WebGLRenderingContext) => (drawMode: DrawMode) => {
+    switch (drawMode) {
+      case DrawMode.Triangles:
+        return gl.TRIANGLES;
+      case DrawMode.TriangleFan:
+        return gl.TRIANGLE_FAN;
+      default:
+        throw new Error(`Unsupported draw mode: ${drawMode}`);
+    }
+  };
 
 export const buildShader =
   (gl: WebGLRenderingContext) =>
   (shaderSource: ShaderSource): Either<string, WebGLShader> => {
     return pipe(
       shaderSource.type,
-      shaderTypeToWebGLShaderType(gl),
+      toWebGLShaderType(gl),
       createShader(gl),
       E.chain(tapE(setShaderSource(gl)(shaderSource.source))),
       E.chain(tapE(compileShader(gl)))
@@ -170,52 +193,128 @@ export const initializeYehatContext =
 export const initializeDefaultYehatContext = (gl: WebGLRenderingContext) =>
   pipe(getDefaultShaderSources(), initializeYehatContext(gl));
 
-const createVertexBuffer2D =
+const createBuffers =
   (gl: WebGLRenderingContext) =>
   (gameObject: GameObject2DCreated): Either<string, GameObject2DInitialized> =>
     pipe(
-      gl.createBuffer(),
-      E.fromNullable("Cannot create buffer"),
-      E.map((buffer) => ({ ...gameObject, vertexBuffer: buffer }))
+      gameObject,
+      (go) => {
+        return pipe(
+          gl.createBuffer(),
+          E.fromNullable("Cannot create buffer"),
+          E.map((buffer) => [go, buffer] as const)
+        );
+      },
+      E.chain((goAndBuffer) => {
+        const [go, firstBuffer] = goAndBuffer;
+        return pipe(
+          gl.createBuffer(),
+          E.fromNullable("Cannot create buffer"),
+          E.map((buffer) => [go, firstBuffer, buffer] as const)
+        );
+      }),
+      E.map((result) => {
+        const [go, firstBuffer, secondBuffer] = result;
+        return {
+          ...go,
+          vertexBuffer: firstBuffer,
+          textureCoordBuffer: secondBuffer,
+          initialized: true as const,
+        };
+      })
     );
 
-const bindVertexBuffer =
+const bindBuffers =
   (gl: WebGLRenderingContext) => (gameObject: GameObject2DInitialized) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, gameObject.vertices, gl.STATIC_DRAW);
-    return gameObject;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.textureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, gameObject.textureCoords, gl.STATIC_DRAW);
   };
+
+const loadImage =
+  (entry: [number, Texture]): Task<[number, Texture, HTMLImageElement]> =>
+  () =>
+    new Promise((resolve) => {
+      const [key, { url }] = entry;
+      const image = new Image();
+      image.onload = () => {
+        resolve([key, { url }, image]);
+      };
+      image.src = url;
+    });
+
+const getUnsafeCastValue = <TObj, TVal>(obj: TObj, key: string): TVal =>
+  (obj as unknown as Record<string, TVal>)[key];
+
+const initializeTexture =
+  (gl: WebGLRenderingContext) =>
+  (entry: [number, Texture, HTMLImageElement]): void => {
+    const [key, , image] = entry;
+    const level = 0;
+    const internalFormat = gl.RGBA;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
+
+    const webGLTexture = gl.createTexture();
+    gl.activeTexture(getUnsafeCastValue(gl, `TEXTURE${key}`));
+    gl.bindTexture(gl.TEXTURE_2D, webGLTexture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      level,
+      internalFormat,
+      srcFormat,
+      srcType,
+      image
+    );
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  };
+
+const initializeTextures =
+  <T extends GameData>(gl: WebGLRenderingContext) =>
+  (scene: YehatScene2DCreated<T>): Task<YehatScene2DCreated<T>> =>
+    pipe(
+      scene.textures.entries(),
+      Array.from<[number, Texture]>,
+      tap(() => {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      }),
+      A.map((entry) =>
+        pipe(entry, loadImage, T.map(tap(initializeTexture(gl))))
+      ),
+      T.sequenceArray,
+      T.map(() => scene)
+    );
 
 export const initializeDefaultScene2D =
   <T extends GameData>(gl: WebGLRenderingContext) =>
-  (scene: YehatScene2DCreated<T>): Either<string, YehatScene2DInitialized<T>> =>
+  (
+    scene: YehatScene2DCreated<T>
+  ): TaskEither<string, YehatScene2DInitialized<T>> =>
     pipe(
-      scene.gameObjects,
-      A.map(flow(createVertexBuffer2D(gl), E.map(bindVertexBuffer(gl)))),
-      A.sequence(E.Monad),
-      E.chain((gameObjects) =>
+      scene,
+      initializeTextures(gl),
+      T.map((scene) => scene.gameObjects),
+      T.map(A.map(flow(createBuffers(gl), E.map(tap(bindBuffers(gl)))))),
+      T.map(A.sequence(E.Monad)),
+      TE.chain((gameObjects) =>
         pipe(
           initializeDefaultYehatContext(gl),
           E.map((context) => ({
             ...scene,
-            isInitialized: true,
+            isInitialized: true as const,
             gameObjects,
             context,
-          }))
+          })),
+          TE.fromEither
         )
       )
     );
-
-const toWebGLDrawMode = (gl: WebGLRenderingContext) => (drawMode: DrawMode) => {
-  switch (drawMode) {
-    case DrawMode.Triangles:
-      return gl.TRIANGLES;
-    case DrawMode.TriangleFan:
-      return gl.TRIANGLE_FAN;
-    default:
-      throw new Error(`Unsupported draw mode: ${drawMode}`);
-  }
-};
 
 export const drawScene = <T extends GameData>(
   scene: YehatScene2DInitialized<T>
@@ -239,17 +338,23 @@ export const drawScene = <T extends GameData>(
       program,
       "uTranslationVector"
     );
+    const uHasTexture = gl.getUniformLocation(program, "uHasTexture");
+    const uTexture = gl.getUniformLocation(program, "uTexture");
 
     gl.uniform2fv(uScalingFactor, gameObject.scale);
     gl.uniform2fv(uRotationVector, gameObject.rotation);
     gl.uniform2fv(uTranslationVector, gameObject.translation);
     gl.uniform4fv(uGlobalColor, gameObject.color);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
+    gl.uniform1i(uHasTexture, gameObject.texture._tag === "Some" ? 1 : 0);
+    gl.uniform1i(
+      uTexture,
+      gameObject.texture._tag === "Some" ? gameObject.texture.value : 0
+    );
 
     const aVertexPosition = gl.getAttribLocation(program, "aVertexPosition");
+    const aTextureCoord = gl.getAttribLocation(program, "aTextureCoord");
 
-    gl.enableVertexAttribArray(aVertexPosition);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
     gl.vertexAttribPointer(
       aVertexPosition,
       VertexNumComponents2D,
@@ -258,6 +363,18 @@ export const drawScene = <T extends GameData>(
       0,
       0
     );
+    gl.enableVertexAttribArray(aVertexPosition);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.textureCoordBuffer);
+    gl.vertexAttribPointer(
+      aTextureCoord,
+      VertexNumComponents2D,
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    gl.enableVertexAttribArray(aTextureCoord);
 
     gl.drawArrays(
       toWebGLDrawMode(gl)(gameObject.drawMode),
@@ -269,64 +386,44 @@ export const drawScene = <T extends GameData>(
   return scene;
 };
 
+const updateCurrentTime =
+  <T extends GameData>(sceneE: Either<string, YehatScene2DInitialized<T>>) =>
+  (currentTime: number) =>
+    pipe(
+      sceneE,
+      E.map(
+        (scene): YehatScene2DInitialized<T> => ({
+          ...scene,
+          gameData: { ...scene.gameData, currentTime },
+        })
+      )
+    );
+
 export const processGameTick =
   <T extends GameData>(
     updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
   ) =>
   (
-    sceneE: Either<string, YehatScene2DInitialized<T>>
-  ): TaskEither<string, YehatScene2DInitialized<T>> =>
-    pipe(
-      sceneE,
+    sceneTE: Either<string, YehatScene2DInitialized<T>>
+  ): TaskEither<string, YehatScene2DInitialized<T>> => {
+    const foo = pipe(
+      sceneTE,
       E.map(updateScene),
       E.map(drawScene),
-      TE.fromEither,
-      T.chain((e) =>
-        pipe(
+      TE.fromEither
+    );
+    return pipe(
+      foo,
+      T.chain((sceneE) => {
+        const bar = pipe(
           requestAnimationFrameTask,
-          T.map((currentTime) =>
-            pipe(
-              e,
-              E.map(
-                (scene): YehatScene2DInitialized<T> => ({
-                  ...scene,
-                  gameData: { ...scene.gameData, currentTime },
-                })
-              )
-            )
-          )
-        )
-      ),
+          T.map(updateCurrentTime(sceneE))
+        );
+        return bar;
+      }),
       T.chain(processGameTick(updateScene))
     );
-
-// Shapes
-
-export const createSquareShape = () =>
-  new Float32Array([
-    -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
-  ]);
-
-export const getSquareDrawMode = () => DrawMode.Triangles;
-
-export const createTriangleShape = () =>
-  new Float32Array([0, 0.5, 0.5, -0.5, -0.5, -0.5]);
-
-export const getTriangleDrawMode = () => DrawMode.Triangles;
-
-export const createCircleShape = () =>
-  new Float32Array(
-    [
-      0.0,
-      0.0,
-      ...range(0, 30).map((i) => [
-        Math.cos((i * 2 * Math.PI) / 30) * 0.5,
-        Math.sin((i * 2 * Math.PI) / 30) * 0.5,
-      ]),
-    ].flat()
-  );
-
-export const getCircleDrawMode = () => DrawMode.TriangleFan;
+  };
 
 export type Startup = (
   gl: WebGLRenderingContext

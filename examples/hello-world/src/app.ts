@@ -1,20 +1,28 @@
 import { pipe } from "fp-ts/lib/function";
+import * as T from "fp-ts/lib/Task";
+
+import { vec2 } from "gl-matrix";
 
 import {
   GameData,
+  GameObject2DInitialized,
   YehatScene2DCreated,
   YehatScene2DInitialized,
-  createCircleShape,
-  createSquareShape,
-  createTriangleShape,
-  getCircleDrawMode,
-  getSquareDrawMode,
-  getTriangleDrawMode,
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
 } from "yehat/src/v2/core";
-import { vec2, vec4 } from "gl-matrix";
+import { vector2, vector4 } from "yehat/src/v2/math";
+import {
+  createCircle,
+  createRectangle,
+  createTriangle,
+  setColor,
+  setRotation,
+  setScale,
+  setTranslation,
+} from "yehat/src/v2/shapes";
+import { assoc } from "yehat/src/v2/utils";
 
 interface HelloWorldGameData extends GameData {
   currentAngle: number;
@@ -30,34 +38,27 @@ const createScene = (
 ): YehatScene2DCreated<HelloWorldGameData> => {
   const aspectRatio = gl.canvas.width / gl.canvas.height;
 
-  const scaleFactor = 0.3;
+  const setOneThirdScale = setScale(vector2.create(0.3, aspectRatio * 0.3));
 
-  const circle = {
-    vertices: createCircleShape(),
-    translation: vec2.fromValues(-0.5, 0.0),
-    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
-    rotation: vec2.fromValues(0, 1),
-    color: vec4.fromValues(0.7, 0.1, 0.2, 1.0),
-    drawMode: getCircleDrawMode(),
-  };
+  const circle = pipe(
+    createCircle(gl)(),
+    setOneThirdScale,
+    setTranslation(vector2.create(-0.5, 0.0)),
+    setColor(vector4.create(0.7, 0.1, 0.2, 1.0))
+  );
 
-  const triangle = {
-    vertices: createTriangleShape(),
-    translation: vec2.fromValues(0.0, 0.0),
-    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
-    rotation: vec2.fromValues(0, 1),
-    color: vec4.fromValues(0.2, 0.1, 0.7, 1.0),
-    drawMode: getTriangleDrawMode(),
-  };
+  const triangle = pipe(
+    createTriangle(gl)(),
+    setOneThirdScale,
+    setColor(vector4.create(0.2, 0.1, 0.7, 1.0))
+  );
 
-  const rectangle = {
-    vertices: createSquareShape(),
-    translation: vec2.fromValues(0.5, 0.0),
-    scale: vec2.fromValues(1.0 * scaleFactor, aspectRatio * scaleFactor),
-    rotation: vec2.fromValues(0, 1),
-    color: vec4.fromValues(0.1, 0.7, 0.2, 1.0),
-    drawMode: getSquareDrawMode(),
-  };
+  const rectangle = pipe(
+    createRectangle(gl)(),
+    setOneThirdScale,
+    setTranslation(vector2.create(0.5, 0.0)),
+    setColor(vector4.create(0.1, 0.7, 0.2, 1.0))
+  );
 
   return {
     isInitialized: false,
@@ -67,7 +68,9 @@ const createScene = (
       currentAngle: 0.0,
       degreesPerSecond: 90,
     },
-    gameObjects: [circle, triangle, rectangle],
+    textures: new Map(),
+    //gameObjects: [circle, triangle, rectangle],
+    gameObjects: [rectangle],
   };
 };
 
@@ -77,43 +80,46 @@ const calculateRotation = (currentAngle: number): vec2 => {
 };
 
 const calculateDeltaAngle =
-  (degreesPerSecond: number) => (previousTime: number, currentTime: number) =>
+  (previousTime: number, currentTime: number) =>
+  (degreesPerSecond: number): number =>
     ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
 
+const incrementCurrentAngle =
+  (currentAngle: number) =>
+  (deltaAngle: number): number =>
+    (currentAngle + deltaAngle) % 360;
+
 const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
-  const {
-    gameData: {
-      currentAngle,
-      previousTime,
-      currentTime,
-      degreesPerSecond,
-      ...gameDataRest
-    },
-    gameObjects: [circle, triangle, rectangle],
-  } = scene;
+  // const { gameData, gameObjects } = scene;
 
-  const gameObjects = [
-    circle,
-    triangle,
-    { ...rectangle, rotation: calculateRotation(currentAngle) },
-  ];
+  // const { currentAngle, previousTime, currentTime, degreesPerSecond } =
+  //   gameData;
 
-  const gameData = {
-    ...gameDataRest,
-    currentAngle:
-      (currentAngle +
-        calculateDeltaAngle(degreesPerSecond)(previousTime, currentTime)) %
-      360,
-    currentTime,
-    previousTime: currentTime,
-    degreesPerSecond,
-  };
+  // const [circle, triangle, rectangle] = gameObjects;
 
-  return {
-    ...scene,
-    gameObjects,
-    gameData,
-  };
+  // return {
+  //   ...scene,
+  //   gameData: pipe(
+  //     gameData,
+  //     assoc<HelloWorldGameData>("currentAngle")(
+  //       pipe(
+  //         degreesPerSecond,
+  //         calculateDeltaAngle(previousTime, currentTime),
+  //         incrementCurrentAngle(currentAngle)
+  //       )
+  //     ),
+  //     assoc<HelloWorldGameData>("previousTime")(currentTime)
+  //   ),
+  //   gameObjects: [
+  //     circle,
+  //     triangle,
+  //     pipe(
+  //       rectangle,
+  //       setRotation(calculateRotation(currentAngle))
+  //     ) as GameObject2DInitialized,
+  //   ],
+  // };
+  return scene;
 };
 
 const startup = (gl: WebGLRenderingContext) =>
@@ -121,7 +127,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    processGameTick(updateScene)
+    T.chain(processGameTick(updateScene))
   );
 
-loadGame(window)("#glcanvas")(startup);
+pipe(startup, loadGame(window)("#glcanvas"));

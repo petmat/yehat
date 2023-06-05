@@ -28,3 +28,13 @@ export const logF = (...data: unknown[]): false => {
   console.log(...data);
   return false;
 };
+
+export const assoc =
+  <T>(key: keyof T) =>
+  (val: T[typeof key]) =>
+  (obj: T): T => ({ ...obj, [key]: val });
+
+export const append =
+  <T>(arr: T[]) =>
+  (val: T): T[] =>
+    [...arr, val];

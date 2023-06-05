@@ -1,9 +1,12 @@
 export const defaultVs = `
   attribute vec2 aVertexPosition;
+  attribute vec2 aTextureCoord;
 
   uniform vec2 uScalingFactor;
   uniform vec2 uRotationVector;
   uniform vec2 uTranslationVector;
+
+  varying highp vec2 vTextureCoord;
 
   void main() {
     vec2 rotatedPosition = vec2(
@@ -14,5 +17,7 @@ export const defaultVs = `
     );
 
     gl_Position = vec4(rotatedPosition * uScalingFactor + uTranslationVector, 0.0, 1.0);
+    
+    vTextureCoord = aTextureCoord;
   }
 `;
