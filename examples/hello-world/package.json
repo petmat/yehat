@@ -9,7 +9,7 @@
     "start": "yarn parcel src/index.html src/assets/textures/**/*"
   },
   "devDependencies": {
-    "parcel": "^2.2.1",
+    "parcel": "2.9.2",
     "yehat": "0.0.1"
   },
   "dependencies": {
