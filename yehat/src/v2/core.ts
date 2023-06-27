@@ -74,9 +74,6 @@ export interface Texture {
   url: string;
 }
 
-export const calculateVertexCount2D = (gameObject: GameObject2D) =>
-  gameObject.vertices.length / VertexNumComponents2D;
-
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
   gameData: T;
@@ -94,6 +91,12 @@ export interface YehatScene2DInitialized<T extends GameData = GameData> {
 export type YehatScene2D<T extends GameData = GameData> =
   | YehatScene2DCreated<T>
   | YehatScene2DInitialized<T>;
+
+export const calculateAspectRatio = (gl: WebGLRenderingContext) =>
+  gl.canvas.width / gl.canvas.height;
+
+export const calculateVertexCount2D = (gameObject: GameObject2D) =>
+  gameObject.vertices.length / VertexNumComponents2D;
 
 export const toWebGLShaderType =
   (gl: WebGLRenderingContext) => (shaderType: ShaderType) =>
@@ -327,6 +330,10 @@ export const drawScene = <T extends GameData>(
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
   gl.clearColor(0.8, 0.9, 1.0, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
+
+  // This here is to allow transparency for the textures (sprites mostly)
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   for (const gameObject of gameObjects) {
     gl.useProgram(program);

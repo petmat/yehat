@@ -1,8 +1,15 @@
 import * as O from "fp-ts/lib/Option";
 import { range } from "fp-ts/lib/ReadonlyNonEmptyArray";
-import { DrawMode, GameObject2D, GameObject2DCreated } from "./core";
+import {
+  DrawMode,
+  GameObject2D,
+  GameObject2DCreated,
+  Texture,
+  calculateAspectRatio,
+} from "./core";
 import { vector2, vector4 } from "./math";
 import { assoc } from "./utils";
+import { vec2 } from "gl-matrix";
 
 const getAspectRatio = (gl: WebGLRenderingContext) =>
   gl.canvas.width / gl.canvas.height;
@@ -96,3 +103,17 @@ export const setColor = assoc<GameObject2D>("color");
 export const setRotation = assoc<GameObject2D>("rotation");
 
 export const setTexture = assoc<GameObject2D>("texture");
+
+export const setScaleLockAspectRatio =
+  (value: number) => (gl: WebGLRenderingContext) =>
+    setScale(vector2.create(value, calculateAspectRatio(gl) * value));
+
+export const emptyTextures = () => new Map<number, Texture>();
+
+export const addTexture =
+  (index: number, url: string) =>
+  (textures: Map<number, Texture>): Map<number, Texture> => {
+    const newTextures = new Map<number, Texture>(textures);
+    newTextures.set(index, { url });
+    return newTextures;
+  };
