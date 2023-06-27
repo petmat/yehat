@@ -8,8 +8,8 @@ import {
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
-} from "yehat/src/v2/core";
-import { createRectangle, setTexture } from "yehat/src/v2/shapes";
+} from "@yehat/yehat/src/v2/core";
+import { createRectangle, setTexture } from "@yehat/yehat/src/v2/shapes";
 
 enum Textures {
   Square,

@@ -1,5 +1,5 @@
 {
-  "name": "render-2d-scene",
+  "name": "@yehat/example-render-2d-scene",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
@@ -7,7 +7,7 @@
     "start": "yarn parcel src/index.html src/assets/textures/**/* src/assets/fonts/**/*"
   },
   "dependencies": {
-    "yehat": "0.0.1"
+    "@yehat/yehat": "0.0.1"
   },
   "devDependencies": {
     "parcel": "2.9.2"

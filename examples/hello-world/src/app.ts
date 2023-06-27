@@ -11,8 +11,8 @@ import {
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
-} from "yehat/src/v2/core";
-import { vector2, vector4 } from "yehat/src/v2/math";
+} from "@yehat/yehat/src/v2/core";
+import { vector2, vector4 } from "@yehat/yehat/src/v2/math";
 import {
   createCircle,
   createRectangle,
@@ -21,8 +21,8 @@ import {
   setRotation,
   setScale,
   setTranslation,
-} from "yehat/src/v2/shapes";
-import { assoc } from "yehat/src/v2/utils";
+} from "@yehat/yehat/src/v2/shapes";
+import { assoc } from "@yehat/yehat/src/v2/utils";
 
 interface HelloWorldGameData extends GameData {
   currentAngle: number;
@@ -69,8 +69,7 @@ const createScene = (
       degreesPerSecond: 90,
     },
     textures: new Map(),
-    //gameObjects: [circle, triangle, rectangle],
-    gameObjects: [rectangle],
+    gameObjects: [circle, triangle, rectangle],
   };
 };
 
@@ -90,35 +89,35 @@ const incrementCurrentAngle =
     (currentAngle + deltaAngle) % 360;
 
 const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
-  // const { gameData, gameObjects } = scene;
+  const { gameData, gameObjects } = scene;
 
-  // const { currentAngle, previousTime, currentTime, degreesPerSecond } =
-  //   gameData;
+  const { currentAngle, previousTime, currentTime, degreesPerSecond } =
+    gameData;
 
-  // const [circle, triangle, rectangle] = gameObjects;
+  const [circle, triangle, rectangle] = gameObjects;
 
-  // return {
-  //   ...scene,
-  //   gameData: pipe(
-  //     gameData,
-  //     assoc<HelloWorldGameData>("currentAngle")(
-  //       pipe(
-  //         degreesPerSecond,
-  //         calculateDeltaAngle(previousTime, currentTime),
-  //         incrementCurrentAngle(currentAngle)
-  //       )
-  //     ),
-  //     assoc<HelloWorldGameData>("previousTime")(currentTime)
-  //   ),
-  //   gameObjects: [
-  //     circle,
-  //     triangle,
-  //     pipe(
-  //       rectangle,
-  //       setRotation(calculateRotation(currentAngle))
-  //     ) as GameObject2DInitialized,
-  //   ],
-  // };
+  return {
+    ...scene,
+    gameData: pipe(
+      gameData,
+      assoc<HelloWorldGameData>("currentAngle")(
+        pipe(
+          degreesPerSecond,
+          calculateDeltaAngle(previousTime, currentTime),
+          incrementCurrentAngle(currentAngle)
+        )
+      ),
+      assoc<HelloWorldGameData>("previousTime")(currentTime)
+    ),
+    gameObjects: [
+      circle,
+      triangle,
+      pipe(
+        rectangle,
+        setRotation(calculateRotation(currentAngle))
+      ) as GameObject2DInitialized,
+    ],
+  };
   return scene;
 };
 

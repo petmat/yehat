@@ -1,5 +1,5 @@
 {
-  "name": "textures",
+  "name": "@yehat/example-textures",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
@@ -12,6 +12,6 @@
   },
   "devDependencies": {
     "parcel": "2.9.2",
-    "yehat": "0.0.1"
+    "@yehat/yehat": "0.0.1"
   }
 }

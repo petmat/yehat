@@ -15,10 +15,7 @@ export const createRectangleShape = () =>
 export const getRectangleDrawMode = () => DrawMode.Triangles;
 
 export const createRectangleTextureCoords = () =>
-  new Float32Array([
-    //-0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
-    0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0,
-  ]);
+  new Float32Array([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0]);
 
 export const createRectangle =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
@@ -67,7 +64,16 @@ export const createCircleShape = () =>
 export const getCircleDrawMode = () => DrawMode.TriangleFan;
 
 export const createCircleTextureCoords = () =>
-  new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]);
+  new Float32Array(
+    [
+      0.0,
+      0.0,
+      ...range(0, 30).map((i) => [
+        Math.cos((i * 2 * Math.PI) / 30) * 0.5,
+        Math.sin((i * 2 * Math.PI) / 30) * 0.5,
+      ]),
+    ].flat()
+  );
 
 export const createCircle =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({

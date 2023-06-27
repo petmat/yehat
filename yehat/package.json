@@ -1,5 +1,5 @@
 {
-  "name": "yehat",
+  "name": "@yehat/yehat",
   "version": "0.0.1",
   "description": "A game engine built on WebGL",
   "main": "src/index.ts",
