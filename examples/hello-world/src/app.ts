@@ -12,7 +12,7 @@ import {
   loadGame,
   processGameTick,
 } from "@yehat/yehat/src/v2/core";
-import { vector2, vector4 } from "@yehat/yehat/src/v2/math";
+import { createV2, createV4 } from "@yehat/yehat/src/v2/math";
 import {
   createCircle,
   createRectangle,
@@ -38,26 +38,26 @@ const createScene = (
 ): YehatScene2DCreated<HelloWorldGameData> => {
   const aspectRatio = gl.canvas.width / gl.canvas.height;
 
-  const setOneThirdScale = setScale(vector2.create(0.3, aspectRatio * 0.3));
+  const setOneThirdScale = setScale(createV2(0.3, aspectRatio * 0.3));
 
   const circle = pipe(
     createCircle(gl)(),
     setOneThirdScale,
-    setTranslation(vector2.create(-0.5, 0.0)),
-    setColor(vector4.create(0.7, 0.1, 0.2, 1.0))
+    setTranslation(createV2(-0.5, 0.0)),
+    setColor(createV4(0.7, 0.1, 0.2, 1.0))
   );
 
   const triangle = pipe(
     createTriangle(gl)(),
     setOneThirdScale,
-    setColor(vector4.create(0.2, 0.1, 0.7, 1.0))
+    setColor(createV4(0.2, 0.1, 0.7, 1.0))
   );
 
   const rectangle = pipe(
     createRectangle(gl)(),
     setOneThirdScale,
-    setTranslation(vector2.create(0.5, 0.0)),
-    setColor(vector4.create(0.1, 0.7, 0.2, 1.0))
+    setTranslation(createV2(0.5, 0.0)),
+    setColor(createV4(0.1, 0.7, 0.2, 1.0))
   );
 
   return {

@@ -27,6 +27,7 @@ import {
 } from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
+import { createV4 } from "./math";
 
 export enum ShaderType {
   Vertex,
@@ -76,17 +77,20 @@ export interface Texture {
 
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
+  clearColor: vec4;
   gameData: T;
   textures: Map<number, Texture>;
   gameObjects: GameObject2DCreated[];
 }
 
-export interface YehatScene2DInitialized<T extends GameData = GameData> {
+export type YehatScene2DInitialized<T extends GameData = GameData> = Omit<
+  YehatScene2DCreated<T>,
+  "isInitialized" | "gameObjects"
+> & {
   isInitialized: true;
-  gameData: T;
-  context: YehatContext;
   gameObjects: GameObject2DInitialized[];
-}
+  context: YehatContext;
+};
 
 export type YehatScene2D<T extends GameData = GameData> =
   | YehatScene2DCreated<T>
@@ -323,12 +327,14 @@ export const drawScene = <T extends GameData>(
   scene: YehatScene2DInitialized<T>
 ) => {
   const {
+    clearColor = createV4(0, 0, 0, 0),
     context: { webGLRenderingContext: gl, webGLProgram: program },
     gameObjects,
   } = scene;
 
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-  gl.clearColor(0.8, 0.9, 1.0, 1.0);
+  const [r, g, b, a] = clearColor;
+  gl.clearColor(r, g, b, a);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   // This here is to allow transparency for the textures (sprites mostly)
@@ -412,25 +418,17 @@ export const processGameTick =
   ) =>
   (
     sceneTE: Either<string, YehatScene2DInitialized<T>>
-  ): TaskEither<string, YehatScene2DInitialized<T>> => {
-    const foo = pipe(
+  ): TaskEither<string, YehatScene2DInitialized<T>> =>
+    pipe(
       sceneTE,
       E.map(updateScene),
       E.map(drawScene),
-      TE.fromEither
-    );
-    return pipe(
-      foo,
-      T.chain((sceneE) => {
-        const bar = pipe(
-          requestAnimationFrameTask,
-          T.map(updateCurrentTime(sceneE))
-        );
-        return bar;
-      }),
+      TE.fromEither,
+      T.chain((sceneE) =>
+        pipe(requestAnimationFrameTask, T.map(updateCurrentTime(sceneE)))
+      ),
       T.chain(processGameTick(updateScene))
     );
-  };
 
 export type Startup = (
   gl: WebGLRenderingContext
@@ -456,3 +454,17 @@ export const loadGame =
         onLoad(getCanvasElement(canvasSelector)(document))(startup)
       )
     );
+
+// Print and debug
+
+export const printScene = (
+  scene: YehatScene2DInitialized
+): YehatScene2DInitialized => {
+  console.log("HALOO", scene);
+  return scene;
+};
+
+// Colors
+
+export const rgb = (r: number, b: number, g: number) =>
+  createV4(r / 255, b / 255, g / 255, 1.0);
