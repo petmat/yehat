@@ -35,6 +35,7 @@ export enum ShaderType {
 }
 
 export enum DrawMode {
+  Points,
   Triangles,
   TriangleFan,
 }
@@ -77,10 +78,10 @@ export interface Texture {
 
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
-  clearColor: vec4;
   gameData: T;
   textures: Map<number, Texture>;
   gameObjects: GameObject2DCreated[];
+  clearColor?: vec4;
 }
 
 export type YehatScene2DInitialized<T extends GameData = GameData> = Omit<
@@ -113,6 +114,8 @@ export const toWebGLDrawMode =
         return gl.TRIANGLES;
       case DrawMode.TriangleFan:
         return gl.TRIANGLE_FAN;
+      case DrawMode.Points:
+        return gl.POINTS;
       default:
         throw new Error(`Unsupported draw mode: ${drawMode}`);
     }
@@ -315,6 +318,7 @@ export const initializeDefaultScene2D =
           E.map((context) => ({
             ...scene,
             isInitialized: true as const,
+            clearColor: scene.clearColor ?? createV4(0, 0, 0, 1),
             gameObjects,
             context,
           })),
@@ -455,16 +459,19 @@ export const loadGame =
       )
     );
 
-// Print and debug
-
-export const printScene = (
-  scene: YehatScene2DInitialized
-): YehatScene2DInitialized => {
-  console.log("HALOO", scene);
-  return scene;
-};
-
 // Colors
 
 export const rgb = (r: number, b: number, g: number) =>
   createV4(r / 255, b / 255, g / 255, 1.0);
+
+export const hex = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? createV4(
+        parseInt(result[1], 16) / 255,
+        parseInt(result[2], 16) / 255,
+        parseInt(result[3], 16) / 255,
+        1
+      )
+    : createV4(1, 1, 1, 1);
+};

@@ -18,6 +18,22 @@ export const addV2 =
     return out;
   };
 
+export const divideV2 =
+  (b: vec2) =>
+  (a: vec2): vec2 => {
+    let out = vec2.create();
+    vec2.divide(out, a, b);
+    return out;
+  };
+
+export const multiplyV2 =
+  (b: vec2) =>
+  (a: vec2): vec2 => {
+    let out = vec2.create();
+    vec2.multiply(out, a, b);
+    return out;
+  };
+
 // 4-dimensional vector
 
 export const createV4 = (x: number, y: number, z: number, w: number): vec4 =>
@@ -34,5 +50,21 @@ export const addV4 =
   (a: vec4): vec4 => {
     let out = vec4.create();
     vec4.add(out, a, b);
+    return out;
+  };
+
+export const divideV4 =
+  (b: vec4) =>
+  (a: vec4): vec4 => {
+    let out = vec4.create();
+    vec4.divide(out, a, b);
+    return out;
+  };
+
+export const multiplyV4 =
+  (b: vec4) =>
+  (a: vec4): vec4 => {
+    let out = vec4.create();
+    vec4.multiply(out, a, b);
     return out;
   };

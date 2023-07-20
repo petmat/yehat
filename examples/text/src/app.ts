@@ -1,15 +1,13 @@
 import { identity, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
 import * as T from "fp-ts/lib/Task";
-import * as TE from "fp-ts/lib/TaskEither";
 
 import {
   YehatScene2DCreated,
+  hex,
   initializeDefaultScene2D,
   loadGame,
-  printScene,
   processGameTick,
-  rgb,
 } from "@yehat/yehat/src/v2/core";
 import {
   addTexture,
@@ -25,7 +23,7 @@ enum Textures {
 
 const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
   isInitialized: false as const,
-  clearColor: rgb(127, 149, 255),
+  clearColor: hex("#63AE00"),
   gameData: {},
   textures: pipe(
     emptyTextures(),
@@ -33,14 +31,14 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
   ),
   gameObjects: [
     ...pipe(
-      createText(gl)(Textures.MarioFont)("MARIO"),
-      setGroupScaleLockAspectRatio(1 / 8)(gl),
-      A.map(translate([-0.25, 0]))
+      createText(gl)(Textures.MarioFont)("Guns n Roses"),
+      setGroupScaleLockAspectRatio(32 / gl.canvas.width, 32)(gl),
+      A.map(translate([-0.6, 0.2]))
     ),
     ...pipe(
-      createText(gl)(Textures.MarioFont)("00000"),
-      setGroupScaleLockAspectRatio(1 / 8)(gl),
-      A.map(translate([-0.25, -0.4]))
+      createText(gl)(Textures.MarioFont)("Welcome to the Jungle"),
+      setGroupScaleLockAspectRatio(16 / gl.canvas.width, 16)(gl),
+      A.map(translate([-0.55, -0.1]))
     ),
   ],
 });
@@ -50,7 +48,6 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    TE.map(printScene),
     T.chain(processGameTick(identity))
   );
 

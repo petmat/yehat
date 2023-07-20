@@ -39,18 +39,18 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
       createRectangle(gl)(),
       setOneThirdScale(gl),
       setTranslation([-(1 / 2), 0]),
-      setTexture(O.some(Textures.Wood))
+      setTexture(Textures.Wood)
     ),
     pipe(
       createRectangle(gl)(),
       setOneThirdScale(gl),
-      setTexture(O.some(Textures.Square))
+      setTexture(Textures.Square)
     ),
     pipe(
       createRectangle(gl)(),
       setOneThirdScale(gl),
       setTranslation([1 / 2, 0]),
-      setTexture(O.some(Textures.Joy))
+      setTexture(Textures.Joy)
     ),
   ],
 });

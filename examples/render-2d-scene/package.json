@@ -7,9 +7,11 @@
     "start": "yarn parcel src/index.html src/assets/textures/**/* src/assets/fonts/**/*"
   },
   "dependencies": {
-    "@yehat/yehat": "0.0.1"
+    "fp-ts": "^2.16.0",
+    "gl-matrix": "^3.4.3"
   },
   "devDependencies": {
-    "parcel": "2.9.2"
+    "parcel": "2.9.2",
+    "@yehat/yehat": "0.0.1"
   }
 }

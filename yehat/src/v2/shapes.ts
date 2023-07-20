@@ -6,22 +6,38 @@ import {
   Texture,
   calculateAspectRatio,
 } from "./core";
-import { addV2, createV2, createV4, zeroV2 } from "./math";
+import {
+  addV2,
+  createV2,
+  createV4,
+  divideV2,
+  multiplyV2,
+  zeroV2,
+} from "./math";
 import { assoc, log, logF, tap } from "./utils";
 import { vec2 } from "gl-matrix";
-import { identity, pipe } from "fp-ts/lib/function";
+import { flow, pipe } from "fp-ts/lib/function";
 import { chunksOf, flatten, reverse } from "fp-ts/lib/Array";
 import { range } from "fp-ts/lib/NonEmptyArray";
-import { monoidString } from "fp-ts/lib/Monoid";
-import { semigroupString } from "fp-ts/lib/Semigroup";
 
 const getAspectRatio = (gl: WebGLRenderingContext) =>
   gl.canvas.width / gl.canvas.height;
 
+export const px =
+  (gl: WebGLRenderingContext) =>
+  (x: number, y: number): vec2 =>
+    createV2(x / gl.canvas.width, y / gl.canvas.height);
+
+export const pxToWebGLCoords = (gl: WebGLRenderingContext) => (coords: vec2) =>
+  pipe(
+    coords,
+    divideV2(createV2(gl.canvas.width, gl.canvas.height)),
+    multiplyV2(createV2(2, 2)),
+    flow(pipe(createV2(-1, -1), addV2))
+  );
+
 export const createRectangleShape = () =>
-  new Float32Array([
-    -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
-  ]);
+  new Float32Array([-1, 1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1]);
 
 export const getRectangleDrawMode = () => DrawMode.Triangles;
 
@@ -125,7 +141,7 @@ const calculateTextTextureCoord =
       ]
         .map(([x, y]) => [
           x + calculateXOffset(char),
-          y + tap(console.log)(calculateYOffset(char)),
+          y + calculateYOffset(char),
         ])
         .flat()
     );
@@ -145,36 +161,60 @@ export const createText =
       textureCoords: calculateTextTextureCoord(16 / 128)(char),
     }));
 
-export const setScale = assoc<GameObject2D>("scale");
+export const setScale = assoc<GameObject2D, "scale">("scale");
 
-export const setTranslation = assoc<GameObject2D>("translation");
+export const setTranslation = assoc<GameObject2D, "translation">("translation");
 
 export const translate =
   (delta: vec2) =>
   (gameObject: GameObject2D): GameObject2D =>
-    assoc<GameObject2D>("translation")(addV2(delta)(gameObject.translation))(
-      gameObject
-    );
+    setTranslation(addV2(delta)(gameObject.translation))(gameObject);
 
-export const setColor = assoc<GameObject2D>("color");
+export const setColor = assoc<GameObject2D, "color">("color");
 
-export const setRotation = assoc<GameObject2D>("rotation");
+export const setRotation = assoc<GameObject2D, "rotation">("rotation");
 
-export const setTexture = assoc<GameObject2D>("texture");
+export const setTexture = (texture: number) =>
+  assoc<GameObject2D, "texture">("texture")(O.some(texture));
 
 export const setScaleLockAspectRatio =
   (value: number) => (gl: WebGLRenderingContext) =>
     setScale(createV2(value, calculateAspectRatio(gl) * value));
 
+const calculateGroupScaleOffsetStep = (
+  value: number,
+  prevScale: number,
+  scalePx: number
+) => (640 / scalePx - 2) / (prevScale / value); // 0.95; //value * 18;
+
+const calculateGroupScaleOffset = (
+  index: number,
+  value: number,
+  prevScale: number,
+  scalePx: number
+) => index * calculateGroupScaleOffsetStep(value, prevScale, scalePx) * -1;
+
 export const setGroupScaleLockAspectRatio =
-  (value: number) =>
+  (value: number, scalePx: number) =>
   (gl: WebGLRenderingContext) =>
   (gameObjects: GameObject2D[]): GameObject2D[] =>
     gameObjects
-      .map(setScale(createV2(value, calculateAspectRatio(gl) * value)))
       .map((gameObject, index) =>
-        translate(createV2(-7 * value * index, 0))(gameObject)
-      );
+        translate(
+          createV2(
+            pipe(
+              calculateGroupScaleOffset(
+                index,
+                value,
+                gameObject.scale[0],
+                scalePx
+              )
+            ),
+            0
+          )
+        )(gameObject)
+      )
+      .map(setScale(createV2(value, calculateAspectRatio(gl) * value)));
 
 export const emptyTextures = () => new Map<number, Texture>();
 
@@ -185,3 +225,21 @@ export const addTexture =
     newTextures.set(index, { url });
     return newTextures;
   };
+
+export const setTextureCoords = assoc<GameObject2D, "textureCoords">(
+  "textureCoords"
+);
+
+export const getSpriteDrawMode = () => DrawMode.Points;
+
+export const createSprite =
+  (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
+    vertices: createRectangleShape(),
+    translation: zeroV2(),
+    scale: createV2(1.0, getAspectRatio(gl)),
+    rotation: createV2(0, 1),
+    color: createV4(1.0, 1.0, 1.0, 1.0),
+    drawMode: getRectangleDrawMode(),
+    texture: O.none,
+    textureCoords: createRectangleTextureCoords(),
+  });

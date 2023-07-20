@@ -43,10 +43,7 @@ export const compileShader =
       E.chain(
         E.fromPredicate(
           () => !!gl.getShaderParameter(shader, gl.COMPILE_STATUS),
-          () => {
-            console.log("VITUIKS MÄN", gl.getShaderInfoLog(shader));
-            return `Error compiling shader: ${gl.getShaderInfoLog(shader)}`;
-          }
+          () => `Error compiling shader: ${gl.getShaderInfoLog(shader)}`
         )
       )
     );

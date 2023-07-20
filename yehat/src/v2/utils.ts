@@ -30,8 +30,8 @@ export const logF = (...data: unknown[]): false => {
 };
 
 export const assoc =
-  <T>(key: keyof T) =>
-  (val: T[typeof key]) =>
+  <T, K extends keyof T>(key: K) =>
+  (val: T[K]) =>
   (obj: T): T => ({ ...obj, [key]: val });
 
 export const append =
