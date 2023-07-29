@@ -13,13 +13,24 @@ import {
   addTexture,
   createText,
   emptyTextures,
-  setGroupScaleLockAspectRatio,
-  translate,
+  movePosition,
+  setGroupSize,
 } from "@yehat/yehat/src/v2/shapes";
 
 enum Textures {
   MarioFont,
 }
+
+const createMarioFontText =
+  (gl: WebGLRenderingContext) =>
+  (fontSize: number) =>
+  (deltaX: number, deltaY: number) =>
+  (text: string) =>
+    pipe(
+      createText(gl)(Textures.MarioFont)(text),
+      setGroupSize(gl)(fontSize, fontSize),
+      A.map(movePosition(gl)(deltaX, deltaY))
+    );
 
 const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
   isInitialized: false as const,
@@ -30,16 +41,8 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
     addTexture(Textures.MarioFont, "assets/textures/mario_font_square.png")
   ),
   gameObjects: [
-    ...pipe(
-      createText(gl)(Textures.MarioFont)("Guns n Roses"),
-      setGroupScaleLockAspectRatio(32 / gl.canvas.width, 32)(gl),
-      A.map(translate([-0.6, 0.2]))
-    ),
-    ...pipe(
-      createText(gl)(Textures.MarioFont)("Welcome to the Jungle"),
-      setGroupScaleLockAspectRatio(16 / gl.canvas.width, 16)(gl),
-      A.map(translate([-0.55, -0.1]))
-    ),
+    ...createMarioFontText(gl)(32)(140, 288)("Guns n Roses"),
+    ...createMarioFontText(gl)(16)(152, 212)("Welcome to the Jungle"),
   ],
 });
 

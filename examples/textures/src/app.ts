@@ -1,5 +1,4 @@
 import { identity, pipe } from "fp-ts/lib/function";
-import * as O from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
 
 import {
@@ -12,9 +11,9 @@ import {
   addTexture,
   createRectangle,
   emptyTextures,
-  setScaleLockAspectRatio,
+  setPosition,
+  setSize,
   setTexture,
-  setTranslation,
 } from "@yehat/yehat/src/v2/shapes";
 
 enum Textures {
@@ -23,7 +22,18 @@ enum Textures {
   Joy,
 }
 
-const setOneThirdScale = setScaleLockAspectRatio(1 / 3);
+const setSize100 = (gl: WebGLRenderingContext) => setSize(gl)(100, 100);
+
+const createSize100Rectangle =
+  (gl: WebGLRenderingContext) =>
+  (x: number, y: number) =>
+  (texture: Textures) =>
+    pipe(
+      createRectangle(gl)(),
+      setSize100(gl),
+      setPosition(gl)(x, y),
+      setTexture(texture)
+    );
 
 const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
   isInitialized: false as const,
@@ -35,23 +45,9 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
     addTexture(Textures.Joy, "assets/textures/joy.png")
   ),
   gameObjects: [
-    pipe(
-      createRectangle(gl)(),
-      setOneThirdScale(gl),
-      setTranslation([-(1 / 2), 0]),
-      setTexture(Textures.Wood)
-    ),
-    pipe(
-      createRectangle(gl)(),
-      setOneThirdScale(gl),
-      setTexture(Textures.Square)
-    ),
-    pipe(
-      createRectangle(gl)(),
-      setOneThirdScale(gl),
-      setTranslation([1 / 2, 0]),
-      setTexture(Textures.Joy)
-    ),
+    createSize100Rectangle(gl)(160, 240)(Textures.Wood),
+    createSize100Rectangle(gl)(320, 240)(Textures.Square),
+    createSize100Rectangle(gl)(480, 240)(Textures.Joy),
   ],
 });
 

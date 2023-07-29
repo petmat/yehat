@@ -1,7 +1,7 @@
-import { pipe } from "fp-ts/lib/function";
+import { flow, pipe } from "fp-ts/lib/function";
 import * as T from "fp-ts/lib/Task";
 
-import { vec2 } from "gl-matrix";
+import { vec2, vec4 } from "gl-matrix";
 
 import {
   GameData,
@@ -12,15 +12,15 @@ import {
   loadGame,
   processGameTick,
 } from "@yehat/yehat/src/v2/core";
-import { createV2, createV4 } from "@yehat/yehat/src/v2/math";
+import { createV4 } from "@yehat/yehat/src/v2/math";
 import {
-  createCircle,
   createRectangle,
-  createTriangle,
+  setCircleShape,
   setColor,
+  setPosition,
   setRotation,
-  setScale,
-  setTranslation,
+  setSize,
+  setTriangleShape,
 } from "@yehat/yehat/src/v2/shapes";
 import { assoc } from "@yehat/yehat/src/v2/utils";
 
@@ -33,45 +33,54 @@ interface HelloWorldGameData extends GameData {
 
 type HelloWorldScene = YehatScene2DInitialized<HelloWorldGameData>;
 
+const setSize100 = (gl: WebGLRenderingContext) => setSize(gl)(100, 100);
+
+const red = createV4(0.7, 0.1, 0.2, 1.0);
+const blue = createV4(0.2, 0.1, 0.7, 1.0);
+const green = createV4(0.1, 0.7, 0.2, 1.0);
+
+const createSize100GameObject = (gl: WebGLRenderingContext) =>
+  flow(createRectangle(gl), setSize100(gl));
+
+const createSize100Circle =
+  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
+    pipe(
+      createSize100GameObject(gl)(),
+      setCircleShape,
+      setPosition(gl)(x, y),
+      setColor(color)
+    );
+
+const createSize100Triangle =
+  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
+    pipe(
+      createSize100GameObject(gl)(),
+      setTriangleShape,
+      setPosition(gl)(x, y),
+      setColor(color)
+    );
+
+const createSize100Rectangle =
+  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
+    pipe(createSize100GameObject(gl)(), setPosition(gl)(x, y), setColor(color));
+
 const createScene = (
   gl: WebGLRenderingContext
-): YehatScene2DCreated<HelloWorldGameData> => {
-  const aspectRatio = gl.canvas.width / gl.canvas.height;
-
-  const setOneThirdScale = setScale(createV2(0.3, aspectRatio * 0.3));
-
-  const circle = pipe(
-    createCircle(gl)(),
-    setOneThirdScale,
-    setTranslation(createV2(-0.5, 0.0)),
-    setColor(createV4(0.7, 0.1, 0.2, 1.0))
-  );
-
-  const triangle = pipe(
-    createTriangle(gl)(),
-    setOneThirdScale,
-    setColor(createV4(0.2, 0.1, 0.7, 1.0))
-  );
-
-  const rectangle = pipe(
-    createRectangle(gl)(),
-    setOneThirdScale,
-    setTranslation(createV2(0.5, 0.0)),
-    setColor(createV4(0.1, 0.7, 0.2, 1.0))
-  );
-
-  return {
-    isInitialized: false,
-    gameData: {
-      previousTime: 0,
-      currentTime: 0,
-      currentAngle: 0.0,
-      degreesPerSecond: 90,
-    },
-    textures: new Map(),
-    gameObjects: [circle, triangle, rectangle],
-  };
-};
+): YehatScene2DCreated<HelloWorldGameData> => ({
+  isInitialized: false,
+  gameData: {
+    previousTime: 0,
+    currentTime: 0,
+    currentAngle: 0.0,
+    degreesPerSecond: 90,
+  },
+  textures: new Map(),
+  gameObjects: [
+    createSize100Circle(gl)(160, 240)(red),
+    createSize100Triangle(gl)(320, 240)(blue),
+    createSize100Rectangle(gl)(480, 240)(green),
+  ],
+});
 
 const calculateRotation = (currentAngle: number): vec2 => {
   const radians = (currentAngle * Math.PI) / 180.0;
@@ -100,14 +109,14 @@ const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
     ...scene,
     gameData: pipe(
       gameData,
-      assoc<HelloWorldGameData>("currentAngle")(
+      assoc<HelloWorldGameData, "currentAngle">("currentAngle")(
         pipe(
           degreesPerSecond,
           calculateDeltaAngle(previousTime, currentTime),
           incrementCurrentAngle(currentAngle)
         )
       ),
-      assoc<HelloWorldGameData>("previousTime")(currentTime)
+      assoc<HelloWorldGameData, "previousTime">("previousTime")(currentTime)
     ),
     gameObjects: [
       circle,
@@ -118,7 +127,6 @@ const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
       ) as GameObject2DInitialized,
     ],
   };
-  return scene;
 };
 
 const startup = (gl: WebGLRenderingContext) =>

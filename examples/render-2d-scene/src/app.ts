@@ -15,13 +15,15 @@ import {
   createSprite,
   createText,
   emptyTextures,
+  movePosition,
   pxToWebGLCoords,
-  setGroupScaleLockAspectRatio,
+  setGroupSize,
+  setPosition,
   setScale,
+  setSize,
   setTexture,
   setTextureCoords,
   setTranslation,
-  translate,
 } from "@yehat/yehat/src/v2/shapes";
 import { addV2, createV2 } from "@yehat/yehat/src/v2/math";
 
@@ -52,14 +54,8 @@ const createTile =
   (x: number, y: number) =>
     pipe(
       createRectangle(gl)(),
-      setScale(createV2(width / gl.canvas.width, height / gl.canvas.height)),
-      setTranslation(
-        pipe(
-          createV2(x, y),
-          addV2(createV2(width / 2, height / 2)),
-          pxToWebGLCoords(gl)
-        )
-      ),
+      setSize(gl)(width, height),
+      setPosition(gl)(x, y),
       setTexture(texture)
     );
 
@@ -69,9 +65,11 @@ const createLargeTile = createTile(64, 64);
 
 const createSmallTile = createTile(32, 32);
 
+const createFloorTile = createTile(640, 32);
+
 const createFloor = (gl: WebGLRenderingContext) => () =>
   pipe(
-    createTile(640, 32)(gl)(Textures.FloorTile)(0, -10),
+    createFloorTile(gl)(Textures.FloorTile)(320, 6),
     setTextureCoords(new Float32Array([0, 1, 16, 1, 16, 0, 0, 1, 16, 0, 0, 0]))
   );
 
@@ -103,17 +101,13 @@ const createSymbol =
 
 const createMarioText =
   (gl: WebGLRenderingContext) =>
-  (texture: Textures) =>
+  (fontSize: number) =>
+  (deltaX: number, deltaY: number) =>
   (text: string) =>
-  (x: number, y: number) =>
     pipe(
-      createText(gl)(texture)(text),
-      setGroupScaleLockAspectRatio(16 / gl.canvas.width, 16)(gl),
-      A.map(
-        translate(
-          pipe(createV2(x, y), addV2(createV2(8, 8)), pxToWebGLCoords(gl))
-        )
-      )
+      createText(gl)(Textures.MarioFont)(text),
+      setGroupSize(gl)(fontSize, fontSize),
+      A.map(movePosition(gl)(deltaX, deltaY))
     );
 
 const getGameObjectCreators = (gl: WebGLRenderingContext) => ({
@@ -139,39 +133,39 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 
   return [
     // background
-    createLargeWideTile(Textures.Bush)(-12, 20),
-    createLargeWideTile(Textures.Hill)(100, 20),
-    createLargeTile(Textures.BushSmall)(365, 20),
+    createLargeWideTile(Textures.Bush)(54, 54),
+    createLargeWideTile(Textures.Hill)(166, 54),
+    createLargeTile(Textures.BushSmall)(420, 54),
     // floor
     createFloor(),
     // platform tiles
-    createTile(Textures.Tile25)(112, 100),
-    createTile(Textures.Bricks)(230, 100),
-    createTile(Textures.Iron)(262, 100),
-    createTile(Textures.Bricks)(294, 100),
-    createTile(Textures.Tile25)(326, 100),
-    createTile(Textures.Bricks)(358, 100),
-    createTile(Textures.Tile25)(294, 184),
-    createLargeTile(Textures.Pipe)(514, 22),
+    createTile(Textures.Tile25)(112, 118),
+    createTile(Textures.Bricks)(230, 118),
+    createTile(Textures.Iron)(262, 118),
+    createTile(Textures.Bricks)(294, 118),
+    createTile(Textures.Tile25)(326, 118),
+    createTile(Textures.Bricks)(358, 118),
+    createTile(Textures.Tile25)(294, 202),
+    createLargeTile(Textures.Pipe)(564, 54),
     // monsters
     createCharacter(Textures.DickHead)(82, 20),
     // mario
-    createCharacter(Textures.Mario)(286, 54),
+    createCharacter(Textures.Mario)(270, 54),
     // power-ups
-    createCharacter(Textures.Mushroom)(314, 132),
+    createCharacter(Textures.Mushroom)(298, 132),
     // sky
-    createLargeTile(Textures.CloudSmall)(78, 216),
-    createLargeWideTile(Textures.Cloud)(476, 208),
+    createLargeTile(Textures.CloudSmall)(94, 252),
+    createLargeWideTile(Textures.Cloud)(554, 238),
     // game info text
-    ...createMarioText(Textures.MarioFont)("MARIO")(110, 305),
-    ...createMarioText(Textures.MarioFont)("WORLD")(330, 305),
-    ...createMarioText(Textures.MarioFont)("TIME")(460, 305),
-    ...createMarioText(Textures.MarioFont)("000000")(110, 285),
-    createSymbol(Textures.Coin)(234, 285),
-    createSymbol(Textures.X)(252, 285),
-    ...createMarioText(Textures.MarioFont)("00")(270, 285),
-    ...createMarioText(Textures.MarioFont)("1-1")(345, 285),
-    ...createMarioText(Textures.MarioFont)("913")(470, 285),
+    ...createMarioText(16)(100, 356)("MARIO"),
+    ...createMarioText(16)(330, 356)("WORLD"),
+    ...createMarioText(16)(470, 356)("TIME"),
+    ...createMarioText(16)(100, 336)("000000"),
+    createSymbol(Textures.Coin)(228, 328),
+    createSymbol(Textures.X)(244, 328),
+    ...createMarioText(16)(270, 336)("00"),
+    ...createMarioText(16)(344, 336)("1-1"),
+    ...createMarioText(16)(480, 336)("913"),
   ];
 };
 
