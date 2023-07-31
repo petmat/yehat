@@ -234,7 +234,7 @@ const createBuffers =
       })
     );
 
-const bindBuffers =
+export const bindBuffers =
   (gl: WebGLRenderingContext) => (gameObject: GameObject2DInitialized) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, gameObject.vertices, gl.STATIC_DRAW);

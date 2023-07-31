@@ -8,6 +8,7 @@
     "start:hello-world": "yarn workspace @yehat/example-hello-world start",
     "start:textures": "yarn workspace @yehat/example-textures start",
     "start:text": "yarn workspace @yehat/example-text start",
-    "start:render-2d-scene": "yarn workspace @yehat/example-render-2d-scene start"
+    "start:render-2d-scene": "yarn workspace @yehat/example-render-2d-scene start",
+    "start:sprite-animation": "yarn workspace @yehat/example-sprite-animation start"
   }
 }
