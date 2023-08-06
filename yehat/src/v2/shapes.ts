@@ -14,7 +14,7 @@ import {
   multiplyV2,
   zeroV2,
 } from "./math";
-import { assoc } from "./utils";
+import { assoc, log } from "./utils";
 import { vec2 } from "gl-matrix";
 import { flow, pipe } from "fp-ts/lib/function";
 import { chunksOf, flatten, reverse } from "fp-ts/lib/Array";
@@ -37,6 +37,11 @@ export const pxToWebGLCoords =
       multiplyV2(createV2(2, 2)),
       flow(pipe(createV2(-1, -1), addV2))
     );
+
+export const pxToWebGLDelta =
+  (gl: WebGLRenderingContext) =>
+  (coords: vec2): vec2 =>
+    pipe(coords, divideV2(createV2(gl.canvas.width, gl.canvas.height)));
 
 export const pxToWebGLScale =
   (gl: WebGLRenderingContext) =>
@@ -213,7 +218,7 @@ export const setPosition =
 
 export const movePosition =
   (gl: WebGLRenderingContext) => (deltaX: number, deltaY: number) =>
-    pipe(createV2(deltaX, deltaY), pxToWebGLCoords(gl), translate);
+    pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate);
 
 export const setTranslation = assoc<GameObject2D, "translation">("translation");
 

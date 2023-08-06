@@ -24,6 +24,13 @@ export const log = <T>(...data: unknown[]) =>
     console.log(...data, a);
   });
 
+export const logE = <T>(...data: unknown[]) =>
+  E.map(
+    tap((a: T) => {
+      console.log(...data, a);
+    })
+  );
+
 export const logF = (...data: unknown[]): false => {
   console.log(...data);
   return false;

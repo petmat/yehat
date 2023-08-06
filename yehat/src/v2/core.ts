@@ -18,7 +18,7 @@ import {
   linkProgram,
   setShaderSource,
 } from "./webGL";
-import { tap, tapE } from "./utils";
+import { log, logE, tap, tapE } from "./utils";
 import {
   addLoadEventListenerWithDefaults,
   getCanvasElement,
@@ -421,10 +421,10 @@ export const processGameTick =
     updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
   ) =>
   (
-    sceneTE: Either<string, YehatScene2DInitialized<T>>
+    sceneE: Either<string, YehatScene2DInitialized<T>>
   ): TaskEither<string, YehatScene2DInitialized<T>> =>
     pipe(
-      sceneTE,
+      sceneE,
       E.map(updateScene),
       E.map(drawScene),
       TE.fromEither,
