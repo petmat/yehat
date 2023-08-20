@@ -1,4 +1,4 @@
-import * as T from "fp-ts/lib/Task";
+import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 
 import {
@@ -129,7 +129,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(updateScene))
+    TE.chain(processGameTick(updateScene))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

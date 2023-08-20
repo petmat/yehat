@@ -4,7 +4,6 @@ import * as E from "fp-ts/lib/Either";
 import { Either } from "fp-ts/lib/Either";
 import { Option } from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
-import { Task } from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { TaskEither } from "fp-ts/lib/TaskEither";
 
@@ -18,7 +17,7 @@ import {
   linkProgram,
   setShaderSource,
 } from "./webGL";
-import { log, logE, tap, tapE } from "./utils";
+import { tap, tapE } from "./utils";
 import {
   addLoadEventListenerWithDefaults,
   getCanvasElement,
@@ -57,12 +56,15 @@ export const VertexNumComponents2D = 2;
 export interface GameObject2DCreated {
   vertices: Float32Array;
   translation: vec2;
+  previousTranslation: vec2;
+  velocity: vec2;
   scale: vec2;
   rotation: vec2;
   color: vec4;
   drawMode: DrawMode;
   texture: Option<number>;
   textureCoords: Float32Array;
+  tag: Option<string>;
 }
 
 export type GameObject2DInitialized = GameObject2DCreated & {
@@ -205,11 +207,8 @@ export const initializeDefaultYehatContext = (gl: WebGLRenderingContext) =>
 
 const createBuffers =
   (gl: WebGLRenderingContext) =>
-  (
-    gameObject: GameObject2DCreated
-  ): Either<string, GameObject2DInitialized> => {
-    console.log("CREATE BUFFERS");
-    return pipe(
+  (gameObject: GameObject2DCreated): Either<string, GameObject2DInitialized> =>
+    pipe(
       gameObject,
       (go) => {
         return pipe(
@@ -236,7 +235,6 @@ const createBuffers =
         };
       })
     );
-  };
 
 export const bindBuffers =
   (gl: WebGLRenderingContext) => (gameObject: GameObject2DInitialized) => {
@@ -273,7 +271,6 @@ const initializeTexture =
   (gl: WebGLRenderingContext) =>
   (entry: [number, Texture, HTMLImageElement]): void => {
     const [key, , image] = entry;
-    console.log(`INITIALIZE TEXTURE ${key}`);
     const level = 0;
     const internalFormat = gl.RGBA;
     const srcFormat = gl.RGBA;
@@ -299,11 +296,8 @@ const initializeTexture =
 
 const initializeTextures =
   <T extends GameData>(gl: WebGLRenderingContext) =>
-  (
-    scene: YehatScene2DCreated<T>
-  ): TaskEither<string, YehatScene2DCreated<T>> => {
-    console.log("INITIALIZE TEXTURES");
-    const foo = pipe(
+  (scene: YehatScene2DCreated<T>): TaskEither<string, YehatScene2DCreated<T>> =>
+    pipe(
       scene.textures.entries(),
       Array.from<[number, Texture]>,
       tap(() => {
@@ -315,17 +309,13 @@ const initializeTextures =
       TE.sequenceArray,
       TE.map(() => scene)
     );
-    return foo;
-  };
 
 export const initializeDefaultScene2D =
   <T extends GameData>(gl: WebGLRenderingContext) =>
   (
     scene: YehatScene2DCreated<T>
-  ): TaskEither<string, YehatScene2DInitialized<T>> => {
-    console.log("INITIALIZE DEFAULT SCENE 2D");
-
-    return pipe(
+  ): TaskEither<string, YehatScene2DInitialized<T>> =>
+    pipe(
       scene,
       initializeTextures(gl),
       TE.map((scene) => scene.gameObjects),
@@ -354,13 +344,10 @@ export const initializeDefaultScene2D =
         )
       )
     );
-  };
 
 export const drawScene = <T extends GameData>(
   scene: YehatScene2DInitialized<T>
 ) => {
-  console.log("DRAW SCENE");
-
   const {
     clearColor = createV4(0, 0, 0, 0),
     context: { webGLRenderingContext: gl, webGLProgram: program },
@@ -434,24 +421,15 @@ export const drawScene = <T extends GameData>(
   return scene;
 };
 
-const updateCurrentTime =
-  <T extends GameData>(sceneE: Either<string, YehatScene2DInitialized<T>>) =>
-  (currentTime: number) =>
-    pipe(
-      sceneE,
-      E.map(
-        (scene): YehatScene2DInitialized<T> => ({
-          ...scene,
-          gameData: { ...scene.gameData, currentTime },
-        })
-      )
-    );
-
-const updateCurrentTimeTE =
+const updateTime =
   <T extends GameData>(scene: YehatScene2DInitialized<T>) =>
-  (currentTime: number) => ({
+  (currentTime: number): YehatScene2DInitialized<T> => ({
     ...scene,
-    gameData: { ...scene.gameData, currentTime },
+    gameData: {
+      ...scene.gameData,
+      previousTime: scene.gameData.currentTime,
+      currentTime,
+    },
   });
 
 export const processGameTick =
@@ -459,42 +437,20 @@ export const processGameTick =
     updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
   ) =>
   (
-    sceneE: Either<string, YehatScene2DInitialized<T>>
-  ): TaskEither<string, YehatScene2DInitialized<T>> => {
-    console.log("PROCESS GAME TICK");
-
-    return pipe(
-      sceneE,
-      E.map(updateScene),
-      E.map(drawScene),
-      TE.fromEither,
-      T.chain((sceneE) =>
-        pipe(requestAnimationFrameTask, T.map(updateCurrentTime(sceneE)))
-      ),
-      T.chain(processGameTick(updateScene))
-    );
-  };
-
-export const processGameTickTE =
-  <T extends GameData>(
-    updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
-  ) =>
-  (
     scene: YehatScene2DInitialized<T>
-  ): TaskEither<string, YehatScene2DInitialized<T>> => {
-    console.log("PROCESS GAME TICK");
-
-    const foo = pipe(scene, updateScene, drawScene);
-    const wtf = pipe(foo, (scene) => {
-      const bar = requestAnimationFrameTask;
-      return pipe(
-        bar,
-        T.map(updateCurrentTimeTE(scene)),
-        TE.fromTask<YehatScene2DInitialized<T>, string>
-      );
-    });
-    return pipe(wtf, TE.chain(processGameTickTE(updateScene)));
-  };
+  ): TaskEither<string, YehatScene2DInitialized<T>> =>
+    pipe(
+      scene,
+      updateScene,
+      drawScene,
+      (scene) =>
+        pipe(
+          requestAnimationFrameTask,
+          T.map(updateTime(scene)),
+          TE.fromTask<YehatScene2DInitialized<T>, string>
+        ),
+      TE.chain(processGameTick(updateScene))
+    );
 
 export type Startup = (
   gl: WebGLRenderingContext

@@ -1,6 +1,7 @@
 import * as E from "fp-ts/lib/Either";
 import { Either } from "fp-ts/lib/Either";
 import { pipe } from "fp-ts/lib/function";
+import { vec2 } from "gl-matrix";
 
 export const tap =
   <A>(f: (a: A) => void) =>
@@ -36,8 +37,19 @@ export const logF = (...data: unknown[]): false => {
   return false;
 };
 
+export const getLogOnce = () => {
+  let logged = false;
+  return (...data: unknown[]) => {
+    if (!logged) {
+      console.log(...data);
+      logged = true;
+    }
+    return false;
+  };
+};
+
 export const assoc =
-  <T, K extends keyof T>(key: K) =>
+  <T extends { [Property in K]: T[K] }, K extends keyof T>(key: K) =>
   (val: T[K]) =>
   (obj: T): T => ({ ...obj, [key]: val });
 
@@ -45,3 +57,5 @@ export const append =
   <T>(arr: T[]) =>
   (val: T): T[] =>
     [...arr, val];
+
+export const v2ToString = (v: vec2) => `[${v[0]}, ${1}]`;

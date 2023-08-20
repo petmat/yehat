@@ -14,7 +14,7 @@ import {
   multiplyV2,
   zeroV2,
 } from "./math";
-import { assoc, log } from "./utils";
+import { assoc } from "./utils";
 import { vec2 } from "gl-matrix";
 import { flow, pipe } from "fp-ts/lib/function";
 import { chunksOf, flatten, reverse } from "fp-ts/lib/Array";
@@ -41,7 +41,7 @@ export const pxToWebGLCoords =
 export const pxToWebGLDelta =
   (gl: WebGLRenderingContext) =>
   (coords: vec2): vec2 =>
-    pipe(coords, divideV2(createV2(gl.canvas.width, gl.canvas.height)));
+    pipe(coords, divideV2(createV2(gl.canvas.width / 2, gl.canvas.height / 2)));
 
 export const pxToWebGLScale =
   (gl: WebGLRenderingContext) =>
@@ -59,13 +59,16 @@ export const createRectangleTextureCoords = () =>
 export const createRectangle =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
     vertices: createRectangleShape(),
-    translation: zeroV2(),
+    translation: createV2(-1, -1),
+    previousTranslation: createV2(-1, -1),
+    velocity: zeroV2(),
     scale: createV2(1.0, getAspectRatio(gl)),
     rotation: createV2(0, 1),
     color: createV4(1.0, 1.0, 1.0, 1.0),
     drawMode: getRectangleDrawMode(),
     texture: O.none,
     textureCoords: createRectangleTextureCoords(),
+    tag: O.none,
   });
 
 export const setRectangleShape = (gameObject: GameObject2D): GameObject2D => ({
@@ -86,13 +89,16 @@ export const createTriangleTextureCoords = () =>
 export const createTriangle =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
     vertices: createTriangleShape(),
-    translation: zeroV2(),
+    translation: createV2(-1, -1),
+    previousTranslation: createV2(-1, -1),
+    velocity: zeroV2(),
     scale: createV2(1.0, getAspectRatio(gl)),
     rotation: createV2(0, 1),
     color: createV4(1.0, 1.0, 1.0, 1.0),
     drawMode: getTriangleDrawMode(),
     texture: O.none,
     textureCoords: createTriangleTextureCoords(),
+    tag: O.none,
   });
 
 export const setTriangleShape = (gameObject: GameObject2D): GameObject2D => ({
@@ -131,13 +137,16 @@ export const createCircleTextureCoords = () =>
 export const createCircle =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
     vertices: createCircleShape(),
-    translation: zeroV2(),
+    translation: createV2(-1, -1),
+    previousTranslation: createV2(-1, -1),
+    velocity: zeroV2(),
     scale: createV2(1.0, getAspectRatio(gl) * 1.0),
     rotation: createV2(0, 1),
     color: createV4(1.0, 1.0, 1.0, 1.0),
     drawMode: getCircleDrawMode(),
     texture: O.none,
     textureCoords: createCircleTextureCoords(),
+    tag: O.none,
   });
 
 export const setCircleShape = (gameObject: GameObject2D): GameObject2D => ({
@@ -185,13 +194,16 @@ export const createText =
   (text: string): GameObject2DCreated[] =>
     Array.from(text).map((char, index) => ({
       vertices: createRectangleShape(),
-      translation: createV2(0 + index, 0),
+      translation: createV2(-1 + index, -1),
+      previousTranslation: createV2(-1 + index, -1),
+      velocity: zeroV2(),
       scale: createV2(1.0, getAspectRatio(gl) * 1.0),
       rotation: createV2(0, 1),
       color: createV4(1.0, 1.0, 1.0, 1.0),
       drawMode: getCircleDrawMode(),
       texture: O.some(texture),
       textureCoords: calculateTextTextureCoord(16 / 128)(char),
+      tag: O.none,
     }));
 
 export const setScale = assoc<GameObject2D, "scale">("scale");
@@ -210,22 +222,35 @@ export const setSize =
 
 export const setPosition =
   (gl: WebGLRenderingContext) => (x: number, y: number) =>
-    pipe(
-      createV2(x, y),
-      pxToWebGLCoords(gl),
-      assoc<GameObject2D, "translation">("translation")
-    );
+    pipe(createV2(x, y), pxToWebGLCoords(gl), setTranslation);
 
 export const movePosition =
-  (gl: WebGLRenderingContext) => (deltaX: number, deltaY: number) =>
-    pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate);
-
-export const setTranslation = assoc<GameObject2D, "translation">("translation");
+  (gl: WebGLRenderingContext) =>
+  (deltaX: number, deltaY: number) =>
+  <T extends GameObject2D>(gameObject: T): T =>
+    pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate)(gameObject);
 
 export const translate =
   (delta: vec2) =>
-  (gameObject: GameObject2D): GameObject2D =>
-    setTranslation(addV2(delta)(gameObject.translation))(gameObject);
+  <T extends GameObject2D>(gameObject: T): T =>
+    pipe(gameObject, setTranslation(addV2(delta)(gameObject.translation)));
+
+export const setTranslation =
+  <T extends GameObject2D>(val: T["translation"]) =>
+  (gameObject: T): T =>
+    pipe(
+      gameObject,
+      (obj) =>
+        assoc<T, "previousTranslation">("previousTranslation")(obj.translation)(
+          obj
+        ),
+      assoc<T, "translation">("translation")(val)
+    );
+
+export const setVelocity =
+  (velocity: vec2) =>
+  <T extends GameObject2D>(gameObj: T): T =>
+    pipe(gameObj, pipe(velocity, assoc<T, "velocity">("velocity")));
 
 export const setColor = assoc<GameObject2D, "color">("color");
 
@@ -233,6 +258,9 @@ export const setRotation = assoc<GameObject2D, "rotation">("rotation");
 
 export const setTexture = (texture: number) =>
   assoc<GameObject2D, "texture">("texture")(O.some(texture));
+
+export const setTag = (tag: string) =>
+  assoc<GameObject2D, "tag">("tag")(O.some(tag));
 
 export const setScaleLockAspectRatio =
   (value: number) => (gl: WebGLRenderingContext) =>
@@ -321,20 +349,24 @@ export const addTexture =
     return newTextures;
   };
 
-export const setTextureCoords = assoc<GameObject2D, "textureCoords">(
-  "textureCoords"
-);
+export const setTextureCoords =
+  (val: Float32Array) =>
+  <T extends GameObject2D>(gameObj: T): T =>
+    pipe(gameObj, pipe(val, assoc<T, "textureCoords">("textureCoords")));
 
 export const getSpriteDrawMode = () => DrawMode.Points;
 
 export const createSprite =
   (gl: WebGLRenderingContext) => (): GameObject2DCreated => ({
     vertices: createRectangleShape(),
-    translation: zeroV2(),
+    translation: createV2(-1, -1),
+    previousTranslation: createV2(-1, -1),
+    velocity: zeroV2(),
     scale: createV2(1.0, getAspectRatio(gl)),
     rotation: createV2(0, 1),
     color: createV4(1.0, 1.0, 1.0, 1.0),
     drawMode: getRectangleDrawMode(),
     texture: O.none,
     textureCoords: createRectangleTextureCoords(),
+    tag: O.none,
   });

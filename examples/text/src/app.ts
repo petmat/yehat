@@ -1,6 +1,6 @@
 import { identity, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
-import * as T from "fp-ts/lib/Task";
+import * as TE from "fp-ts/lib/TaskEither";
 
 import {
   YehatScene2DCreated,
@@ -41,8 +41,8 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
     addTexture(Textures.MarioFont, "assets/textures/mario_font_square.png")
   ),
   gameObjects: [
-    ...createMarioFontText(gl)(32)(140, 288)("Guns n Roses"),
-    ...createMarioFontText(gl)(16)(152, 212)("Welcome to the Jungle"),
+    ...createMarioFontText(gl)(32)(148, 288)("Guns n Roses"),
+    ...createMarioFontText(gl)(16)(160, 212)("Welcome to the Jungle"),
   ],
 });
 
@@ -51,7 +51,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(identity))
+    TE.chain(processGameTick(identity))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

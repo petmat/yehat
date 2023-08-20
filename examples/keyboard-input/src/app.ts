@@ -1,11 +1,9 @@
 import * as A from "fp-ts/lib/Array";
-import * as T from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 
 import {
   GameData,
-  GameObject2D,
   GameObject2DInitialized,
   YehatScene2DCreated,
   YehatScene2DInitialized,
@@ -20,13 +18,11 @@ import {
   createText,
   emptyTextures,
   movePosition,
-  pxToWebGLCoords,
   setGroupSize,
-  setScale,
+  setPosition,
+  setSize,
   setTexture,
-  setTranslation,
 } from "@yehat/yehat/src/v2/shapes";
-import { addV2, createV2 } from "@yehat/yehat/src/v2/math";
 
 enum Textures {
   Mario,
@@ -53,10 +49,8 @@ const createCharacter =
   (x: number, y: number) =>
     pipe(
       createSprite(gl)(),
-      setScale(createV2(32 / gl.canvas.width, 32 / gl.canvas.height)),
-      setTranslation(
-        pipe(createV2(x, y), addV2(createV2(16, 16)), pxToWebGLCoords(gl))
-      ),
+      setSize(gl)(32, 32),
+      setPosition(gl)(x, y),
       setTexture(texture)
     );
 
@@ -70,16 +64,16 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
   const createMarioText = createText(gl)(Textures.MarioFont);
 
   return [
-    createCharacter(Textures.Mario)(270, 54),
+    createCharacter(Textures.Mario)(286, 70),
     ...pipe(
       createMarioText("ARROW LEFT"),
       setGroupSize(gl)(32, 32),
-      A.map(movePosition(gl)(-320, 240))
+      A.map(movePosition(gl)(180, 340))
     ),
     ...pipe(
       createMarioText("ARROW RIGHT"),
       setGroupSize(gl)(32, 32),
-      A.map(movePosition(gl)(-346, 100))
+      A.map(movePosition(gl)(168, 260))
     ),
   ];
 };
@@ -132,7 +126,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(updateScene))
+    TE.chain(processGameTick(updateScene))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

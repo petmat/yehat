@@ -1,5 +1,5 @@
 import { identity, pipe } from "fp-ts/lib/function";
-import * as T from "fp-ts/lib/Task";
+import * as TE from "fp-ts/lib/TaskEither";
 
 import {
   YehatScene2DCreated,
@@ -56,7 +56,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(identity))
+    TE.chain(processGameTick(identity))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

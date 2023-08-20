@@ -1,5 +1,5 @@
 import { flow, pipe } from "fp-ts/lib/function";
-import * as T from "fp-ts/lib/Task";
+import * as TE from "fp-ts/lib/TaskEither";
 
 import { vec2, vec4 } from "gl-matrix";
 
@@ -134,7 +134,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(updateScene))
+    TE.chain(processGameTick(updateScene))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

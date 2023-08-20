@@ -1,5 +1,5 @@
 import * as A from "fp-ts/lib/Array";
-import * as T from "fp-ts/lib/Task";
+import * as TE from "fp-ts/lib/TaskEither";
 import { identity, pipe } from "fp-ts/lib/function";
 
 import {
@@ -16,16 +16,12 @@ import {
   createText,
   emptyTextures,
   movePosition,
-  pxToWebGLCoords,
   setGroupSize,
   setPosition,
-  setScale,
   setSize,
   setTexture,
   setTextureCoords,
-  setTranslation,
 } from "@yehat/yehat/src/v2/shapes";
-import { addV2, createV2 } from "@yehat/yehat/src/v2/math";
 
 enum Textures {
   Bush,
@@ -44,7 +40,6 @@ enum Textures {
   MarioFont,
   X,
   Coin,
-  RedRectangle,
 }
 
 const createTile =
@@ -79,10 +74,8 @@ const createCharacter =
   (x: number, y: number) =>
     pipe(
       createSprite(gl)(),
-      setScale(createV2(32 / gl.canvas.width, 32 / gl.canvas.height)),
-      setTranslation(
-        pipe(createV2(x, y), addV2(createV2(16, 16)), pxToWebGLCoords(gl))
-      ),
+      setSize(gl)(32, 32),
+      setPosition(gl)(x, y),
       setTexture(texture)
     );
 
@@ -92,10 +85,8 @@ const createSymbol =
   (x: number, y: number) =>
     pipe(
       createSprite(gl)(),
-      setScale(createV2(16 / gl.canvas.width, 16 / gl.canvas.height)),
-      setTranslation(
-        pipe(createV2(x, y), addV2(createV2(8, 8)), pxToWebGLCoords(gl))
-      ),
+      setSize(gl)(16, 16),
+      setPosition(gl)(x, y),
       setTexture(texture)
     );
 
@@ -148,11 +139,11 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
     createTile(Textures.Tile25)(294, 202),
     createLargeTile(Textures.Pipe)(564, 54),
     // monsters
-    createCharacter(Textures.DickHead)(82, 20),
+    createCharacter(Textures.DickHead)(98, 36),
     // mario
-    createCharacter(Textures.Mario)(270, 54),
+    createCharacter(Textures.Mario)(286, 70),
     // power-ups
-    createCharacter(Textures.Mushroom)(298, 132),
+    createCharacter(Textures.Mushroom)(314, 148),
     // sky
     createLargeTile(Textures.CloudSmall)(94, 252),
     createLargeWideTile(Textures.Cloud)(554, 238),
@@ -161,8 +152,8 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
     ...createMarioText(16)(330, 356)("WORLD"),
     ...createMarioText(16)(470, 356)("TIME"),
     ...createMarioText(16)(100, 336)("000000"),
-    createSymbol(Textures.Coin)(228, 328),
-    createSymbol(Textures.X)(244, 328),
+    createSymbol(Textures.Coin)(236, 336),
+    createSymbol(Textures.X)(252, 336),
     ...createMarioText(16)(270, 336)("00"),
     ...createMarioText(16)(344, 336)("1-1"),
     ...createMarioText(16)(480, 336)("913"),
@@ -190,8 +181,7 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
     addTexture(Textures.Mushroom, "assets/textures/mushroom.png"),
     addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png"),
     addTexture(Textures.X, "assets/textures/x.png"),
-    addTexture(Textures.Coin, "assets/textures/coin.png"),
-    addTexture(Textures.RedRectangle, "assets/textures/red_rectangle.png")
+    addTexture(Textures.Coin, "assets/textures/coin.png")
   ),
   gameObjects: createGameObjects(gl),
 });
@@ -201,7 +191,7 @@ const startup = (gl: WebGLRenderingContext) =>
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    T.chain(processGameTick(identity))
+    TE.chain(processGameTick(identity))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));
