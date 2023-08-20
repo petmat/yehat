@@ -205,8 +205,11 @@ export const initializeDefaultYehatContext = (gl: WebGLRenderingContext) =>
 
 const createBuffers =
   (gl: WebGLRenderingContext) =>
-  (gameObject: GameObject2DCreated): Either<string, GameObject2DInitialized> =>
-    pipe(
+  (
+    gameObject: GameObject2DCreated
+  ): Either<string, GameObject2DInitialized> => {
+    console.log("CREATE BUFFERS");
+    return pipe(
       gameObject,
       (go) => {
         return pipe(
@@ -233,6 +236,7 @@ const createBuffers =
         };
       })
     );
+  };
 
 export const bindBuffers =
   (gl: WebGLRenderingContext) => (gameObject: GameObject2DInitialized) => {
@@ -243,17 +247,24 @@ export const bindBuffers =
     gl.bufferData(gl.ARRAY_BUFFER, gameObject.textureCoords, gl.STATIC_DRAW);
   };
 
-const loadImage =
-  (entry: [number, Texture]): Task<[number, Texture, HTMLImageElement]> =>
-  () =>
-    new Promise((resolve) => {
-      const [key, { url }] = entry;
-      const image = new Image();
-      image.onload = () => {
-        resolve([key, { url }, image]);
-      };
-      image.src = url;
-    });
+const loadImage = (
+  entry: [number, Texture]
+): TaskEither<string, [number, Texture, HTMLImageElement]> =>
+  TE.tryCatch(
+    () =>
+      new Promise((resolve, reject) => {
+        const [key, { url }] = entry;
+        const image = new Image();
+        image.onload = () => {
+          resolve([key, { url }, image]);
+        };
+        image.onerror = () => {
+          reject(new Error(`Failed to load image ${url} (Texture ${key})`));
+        };
+        image.src = url;
+      }),
+    (err) => (err as Error).message
+  );
 
 const getUnsafeCastValue = <TObj, TVal>(obj: TObj, key: string): TVal =>
   (obj as unknown as Record<string, TVal>)[key];
@@ -262,6 +273,7 @@ const initializeTexture =
   (gl: WebGLRenderingContext) =>
   (entry: [number, Texture, HTMLImageElement]): void => {
     const [key, , image] = entry;
+    console.log(`INITIALIZE TEXTURE ${key}`);
     const level = 0;
     const internalFormat = gl.RGBA;
     const srcFormat = gl.RGBA;
@@ -287,49 +299,68 @@ const initializeTexture =
 
 const initializeTextures =
   <T extends GameData>(gl: WebGLRenderingContext) =>
-  (scene: YehatScene2DCreated<T>): Task<YehatScene2DCreated<T>> =>
-    pipe(
+  (
+    scene: YehatScene2DCreated<T>
+  ): TaskEither<string, YehatScene2DCreated<T>> => {
+    console.log("INITIALIZE TEXTURES");
+    const foo = pipe(
       scene.textures.entries(),
       Array.from<[number, Texture]>,
       tap(() => {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       }),
       A.map((entry) =>
-        pipe(entry, loadImage, T.map(tap(initializeTexture(gl))))
+        pipe(entry, loadImage, TE.map(tap(initializeTexture(gl))))
       ),
-      T.sequenceArray,
-      T.map(() => scene)
+      TE.sequenceArray,
+      TE.map(() => scene)
     );
+    return foo;
+  };
 
 export const initializeDefaultScene2D =
   <T extends GameData>(gl: WebGLRenderingContext) =>
   (
     scene: YehatScene2DCreated<T>
-  ): TaskEither<string, YehatScene2DInitialized<T>> =>
-    pipe(
+  ): TaskEither<string, YehatScene2DInitialized<T>> => {
+    console.log("INITIALIZE DEFAULT SCENE 2D");
+
+    return pipe(
       scene,
       initializeTextures(gl),
-      T.map((scene) => scene.gameObjects),
-      T.map(A.map(flow(createBuffers(gl), E.map(tap(bindBuffers(gl)))))),
-      T.map(A.sequence(E.Monad)),
+      TE.map((scene) => scene.gameObjects),
+      TE.chain((bar) => {
+        const omg = pipe(
+          A.map(flow(createBuffers(gl), E.map(tap(bindBuffers(gl)))))(bar),
+          A.sequence(E.Monad)
+        );
+        const wtf = E.mapLeft((e) => {
+          console.log("OMG", e);
+          return e as string;
+        })(omg);
+        return TE.fromEither(wtf);
+      }),
       TE.chain((gameObjects) =>
         pipe(
           initializeDefaultYehatContext(gl),
-          E.map((context) => ({
+          TE.fromEither,
+          TE.map((context) => ({
             ...scene,
             isInitialized: true as const,
             clearColor: scene.clearColor ?? createV4(0, 0, 0, 1),
             gameObjects,
             context,
-          })),
-          TE.fromEither
+          }))
         )
       )
     );
+  };
 
 export const drawScene = <T extends GameData>(
   scene: YehatScene2DInitialized<T>
 ) => {
+  console.log("DRAW SCENE");
+
   const {
     clearColor = createV4(0, 0, 0, 0),
     context: { webGLRenderingContext: gl, webGLProgram: program },
@@ -416,14 +447,23 @@ const updateCurrentTime =
       )
     );
 
+const updateCurrentTimeTE =
+  <T extends GameData>(scene: YehatScene2DInitialized<T>) =>
+  (currentTime: number) => ({
+    ...scene,
+    gameData: { ...scene.gameData, currentTime },
+  });
+
 export const processGameTick =
   <T extends GameData>(
     updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
   ) =>
   (
     sceneE: Either<string, YehatScene2DInitialized<T>>
-  ): TaskEither<string, YehatScene2DInitialized<T>> =>
-    pipe(
+  ): TaskEither<string, YehatScene2DInitialized<T>> => {
+    console.log("PROCESS GAME TICK");
+
+    return pipe(
       sceneE,
       E.map(updateScene),
       E.map(drawScene),
@@ -433,6 +473,28 @@ export const processGameTick =
       ),
       T.chain(processGameTick(updateScene))
     );
+  };
+
+export const processGameTickTE =
+  <T extends GameData>(
+    updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
+  ) =>
+  (
+    scene: YehatScene2DInitialized<T>
+  ): TaskEither<string, YehatScene2DInitialized<T>> => {
+    console.log("PROCESS GAME TICK");
+
+    const foo = pipe(scene, updateScene, drawScene);
+    const wtf = pipe(foo, (scene) => {
+      const bar = requestAnimationFrameTask;
+      return pipe(
+        bar,
+        T.map(updateCurrentTimeTE(scene)),
+        TE.fromTask<YehatScene2DInitialized<T>, string>
+      );
+    });
+    return pipe(wtf, TE.chain(processGameTickTE(updateScene)));
+  };
 
 export type Startup = (
   gl: WebGLRenderingContext
@@ -446,7 +508,7 @@ const onLoad =
       TE.fromEither,
       TE.chain(startup),
       TE.mapLeft((error) => {
-        throw new Error(error);
+        console.error(error);
       })
     )();
 
