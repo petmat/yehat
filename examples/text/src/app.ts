@@ -9,13 +9,13 @@ import {
   loadGame,
   processGameTick,
 } from "@yehat/yehat/src/v2/core";
+import { createText } from "@yehat/yehat/src/v2/shapes";
 import {
   addTexture,
-  createText,
   emptyTextures,
   movePosition,
   setGroupSize,
-} from "@yehat/yehat/src/v2/shapes";
+} from "@yehat/yehat/src/v2/gameObject";
 
 enum Textures {
   MarioFont,

@@ -2,12 +2,12 @@ import { constant, flip, flow, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
 import * as E from "fp-ts/lib/Either";
 import { Either } from "fp-ts/lib/Either";
-import { Option } from "fp-ts/lib/Option";
+import * as O from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { TaskEither } from "fp-ts/lib/TaskEither";
 
-import { vec2, vec4 } from "gl-matrix";
+import { vec4 } from "gl-matrix";
 
 import {
   attachShader,
@@ -27,16 +27,12 @@ import {
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
 import { createV4 } from "./math";
+import type { GameObject2D, Texture } from "./gameObject";
+import { DrawMode } from "./gameObject";
 
 export enum ShaderType {
   Vertex,
   Fragment,
-}
-
-export enum DrawMode {
-  Points,
-  Triangles,
-  TriangleFan,
 }
 
 export interface ShaderSource {
@@ -53,54 +49,29 @@ export type GameData = Record<string, unknown>;
 
 export const VertexNumComponents2D = 2;
 
-export interface GameObject2DCreated {
-  vertices: Float32Array;
-  translation: vec2;
-  previousTranslation: vec2;
-  velocity: vec2;
-  scale: vec2;
-  rotation: vec2;
-  color: vec4;
-  drawMode: DrawMode;
-  texture: Option<number>;
-  textureCoords: Float32Array;
-  tag: Option<string>;
-}
-
-export type GameObject2DInitialized = GameObject2DCreated & {
-  vertexBuffer: WebGLBuffer;
-  textureCoordBuffer: WebGLBuffer;
-};
-
-export type GameObject2D = GameObject2DCreated | GameObject2DInitialized;
-
-export interface Texture {
-  url: string;
-}
-
 export interface YehatScene2DCreated<T extends GameData = GameData> {
   isInitialized: false;
   gameData: T;
   textures: Map<number, Texture>;
-  gameObjects: GameObject2DCreated[];
+  gameObjects: GameObject2D[];
   clearColor?: vec4;
+  previousTime: number;
+  currentTime: number;
+  keyHandled: Record<string, boolean>;
+  animationInterval: number;
 }
 
 export type YehatScene2DInitialized<T extends GameData = GameData> = Omit<
   YehatScene2DCreated<T>,
-  "isInitialized" | "gameObjects"
+  "isInitialized"
 > & {
   isInitialized: true;
-  gameObjects: GameObject2DInitialized[];
   context: YehatContext;
 };
 
 export type YehatScene2D<T extends GameData = GameData> =
   | YehatScene2DCreated<T>
   | YehatScene2DInitialized<T>;
-
-export const calculateAspectRatio = (gl: WebGLRenderingContext) =>
-  gl.canvas.width / gl.canvas.height;
 
 export const calculateVertexCount2D = (gameObject: GameObject2D) =>
   gameObject.vertices.length / VertexNumComponents2D;
@@ -207,7 +178,7 @@ export const initializeDefaultYehatContext = (gl: WebGLRenderingContext) =>
 
 const createBuffers =
   (gl: WebGLRenderingContext) =>
-  (gameObject: GameObject2DCreated): Either<string, GameObject2DInitialized> =>
+  (gameObject: GameObject2D): Either<string, GameObject2D> =>
     pipe(
       gameObject,
       (go) => {
@@ -229,20 +200,33 @@ const createBuffers =
         const [go, firstBuffer, secondBuffer] = result;
         return {
           ...go,
-          vertexBuffer: firstBuffer,
-          textureCoordBuffer: secondBuffer,
+          vertexBuffer: O.some(firstBuffer),
+          textureCoordBuffer: O.some(secondBuffer),
           initialized: true as const,
         };
       })
     );
 
-export const bindBuffers =
-  (gl: WebGLRenderingContext) => (gameObject: GameObject2DInitialized) => {
-    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, gameObject.vertices, gl.STATIC_DRAW);
+const bindArrayBuffer =
+  (gl: WebGLRenderingContext) =>
+  (arr: Float32Array) =>
+  (buffer: WebGLBuffer): void => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+  };
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.textureCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, gameObject.textureCoords, gl.STATIC_DRAW);
+export const bindBuffers =
+  (gl: WebGLRenderingContext) =>
+  (gameObject: GameObject2D): Either<string, GameObject2D> => {
+    return pipe(
+      gameObject.vertexBuffer,
+      E.fromOption(() => "Vertex buffer is not set"),
+      E.map(tap(pipe(gameObject.vertices, bindArrayBuffer(gl)))),
+      E.map(() => gameObject.textureCoordBuffer),
+      E.chain(E.fromOption(() => "Texture coordinate buffer is not set")),
+      E.map(tap(pipe(gameObject.textureCoords, bindArrayBuffer(gl)))),
+      E.map(() => gameObject)
+    );
   };
 
 const loadImage = (
@@ -318,18 +302,14 @@ export const initializeDefaultScene2D =
     pipe(
       scene,
       initializeTextures(gl),
-      TE.map((scene) => scene.gameObjects),
-      TE.chain((bar) => {
-        const omg = pipe(
-          A.map(flow(createBuffers(gl), E.map(tap(bindBuffers(gl)))))(bar),
-          A.sequence(E.Monad)
-        );
-        const wtf = E.mapLeft((e) => {
-          console.log("OMG", e);
-          return e as string;
-        })(omg);
-        return TE.fromEither(wtf);
-      }),
+      TE.chain((scene) =>
+        pipe(
+          scene.gameObjects,
+          A.map(flow(createBuffers(gl), E.map(tap(bindBuffers(gl))))),
+          A.sequence(E.Monad),
+          TE.fromEither
+        )
+      ),
       TE.chain((gameObjects) =>
         pipe(
           initializeDefaultYehatContext(gl),
@@ -388,8 +368,18 @@ export const drawScene = <T extends GameData>(
 
     const aVertexPosition = gl.getAttribLocation(program, "aVertexPosition");
     const aTextureCoord = gl.getAttribLocation(program, "aTextureCoord");
+    pipe(
+      gameObject.vertexBuffer,
+      O.fold(
+        () => {
+          throw new Error("Oh noes");
+        },
+        (vertexBuffer) => {
+          gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        }
+      )
+    );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.vertexBuffer);
     gl.vertexAttribPointer(
       aVertexPosition,
       VertexNumComponents2D,
@@ -400,7 +390,18 @@ export const drawScene = <T extends GameData>(
     );
     gl.enableVertexAttribArray(aVertexPosition);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, gameObject.textureCoordBuffer);
+    pipe(
+      gameObject.textureCoordBuffer,
+      O.fold(
+        () => {
+          throw new Error("Oh noes");
+        },
+        (textureCoordBuffer) => {
+          gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+        }
+      )
+    );
+
     gl.vertexAttribPointer(
       aTextureCoord,
       VertexNumComponents2D,
@@ -425,11 +426,8 @@ const updateTime =
   <T extends GameData>(scene: YehatScene2DInitialized<T>) =>
   (currentTime: number): YehatScene2DInitialized<T> => ({
     ...scene,
-    gameData: {
-      ...scene.gameData,
-      previousTime: scene.gameData.currentTime,
-      currentTime,
-    },
+    previousTime: scene.currentTime,
+    currentTime,
   });
 
 export const processGameTick =

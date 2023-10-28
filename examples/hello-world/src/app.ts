@@ -5,7 +5,6 @@ import { vec2, vec4 } from "gl-matrix";
 
 import {
   GameData,
-  GameObject2DInitialized,
   YehatScene2DCreated,
   YehatScene2DInitialized,
   initializeDefaultScene2D,
@@ -15,14 +14,24 @@ import {
 import { createV4 } from "@yehat/yehat/src/v2/math";
 import {
   createRectangle,
-  setCircleShape,
+  createCircleShape,
+  createTriangleShape,
+  getCircleDrawMode,
+  createCircleTextureCoords,
+  getTriangleDrawMode,
+  createTriangleTextureCoords,
+} from "@yehat/yehat/src/v2/shapes";
+import { assoc } from "@yehat/yehat/src/v2/utils";
+import {
+  GameObject2D,
   setColor,
+  setDrawMode,
   setPosition,
   setRotation,
   setSize,
-  setTriangleShape,
-} from "@yehat/yehat/src/v2/shapes";
-import { assoc } from "@yehat/yehat/src/v2/utils";
+  setTextureCoords,
+  setVertices,
+} from "@yehat/yehat/src/v2/gameObject";
 
 interface HelloWorldGameData extends GameData {
   currentAngle: number;
@@ -46,7 +55,9 @@ const createSize100Circle =
   (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
     pipe(
       createSize100GameObject(gl)(),
-      setCircleShape,
+      pipe(createCircleShape(), setVertices),
+      pipe(getCircleDrawMode(), setDrawMode),
+      pipe(createCircleTextureCoords(), setTextureCoords),
       setPosition(gl)(x, y),
       setColor(color)
     );
@@ -55,7 +66,9 @@ const createSize100Triangle =
   (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
     pipe(
       createSize100GameObject(gl)(),
-      setTriangleShape,
+      pipe(createTriangleShape(), setVertices),
+      pipe(getTriangleDrawMode(), setDrawMode),
+      pipe(createTriangleTextureCoords(), setTextureCoords),
       setPosition(gl)(x, y),
       setColor(color)
     );
@@ -124,7 +137,7 @@ const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
       pipe(
         rectangle,
         setRotation(calculateRotation(currentAngle))
-      ) as GameObject2DInitialized,
+      ) as GameObject2D,
     ],
   };
 };

@@ -1,7 +1,6 @@
 import { Either } from "fp-ts/lib/Either";
 import * as E from "fp-ts/lib/Either";
 import { pipe } from "fp-ts/lib/function";
-import { logF } from "./utils";
 
 export const createShader =
   (gl: WebGLRenderingContext) =>
