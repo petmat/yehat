@@ -7,8 +7,8 @@ import { vec2 } from "gl-matrix";
 
 import {
   GameData,
-  YehatScene2DCreated,
-  YehatScene2DInitialized,
+  KeyboardStateMap,
+  YehatScene2D,
   bindBuffers,
   initializeDefaultScene2D,
   loadGame,
@@ -69,19 +69,19 @@ enum Animations {
   MarioRun,
 }
 
-let keyboardState: { [key: string]: boolean } = {};
+let keysDown: KeyboardStateMap = {};
 
-const isKeyDown = (key: string): boolean => !!keyboardState[key];
+const isKeyDown = (key: string): boolean => !!keysDown[key];
 
 const setIsKeyDown = (key: string, isDown: boolean): void => {
-  keyboardState = { ...keyboardState, [key]: isDown };
+  keysDown = { ...keysDown, [key]: isDown };
 };
 
 interface PlayableGameData extends GameData {
   canJump: boolean;
 }
 
-type PlayableScene = YehatScene2DInitialized<PlayableGameData>;
+type PlayableScene = YehatScene2D<PlayableGameData>;
 
 const gridSizeToCoord = (gridSize: number) => 1 / gridSize;
 
@@ -253,12 +253,12 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 
 const createScene = (
   gl: WebGLRenderingContext
-): YehatScene2DCreated<PlayableGameData> => ({
+): YehatScene2D<PlayableGameData> => ({
   isInitialized: false as const,
   clearColor: rgb(127, 149, 255),
   currentTime: 0,
   previousTime: 0,
-  keyHandled: {},
+  keysHandled: {},
   animationInterval: 1000 / 12,
   gameData: {
     marioFrameIndex: 1,
@@ -286,6 +286,7 @@ const createScene = (
     addTexture(Textures.Coin, "assets/textures/coin.png")
   ),
   gameObjects: createGameObjects(gl),
+  context: O.none,
 });
 
 interface Rectangle {
@@ -418,10 +419,59 @@ const nextFrame = (
   return animation[nextIndex];
 };
 
-const updateScene = (scene: PlayableScene): PlayableScene => {
-  const gl = scene.context.webGLRenderingContext;
+const handleInput =
+  (gameData: PlayableGameData) =>
+  (keysHandled: Record<string, boolean>) =>
+  (
+    mario: GameObject2D
+  ): [PlayableGameData, Record<string, boolean>, GameObject2D] => {
+    let newGameData = gameData;
+    let newKeyHandled = keysHandled;
+    let newMario = mario;
+    if (isKeyDown("ArrowLeft")) {
+      newMario = pipe(
+        newMario,
+        setVelocity(createV2(-0.5, newMario.velocity[1])),
+        setCurrentAnimation(Animations.MarioRun),
+        setDirection(createV2(-1, 0))
+      );
+    } else if (isKeyDown("ArrowRight")) {
+      newMario = pipe(
+        newMario,
+        setVelocity(createV2(0.5, newMario.velocity[1])),
+        setCurrentAnimation(Animations.MarioRun),
+        setDirection(createV2(1, 0))
+      );
+    } else {
+      newMario = pipe(newMario, setVelocity(createV2(0, newMario.velocity[1])));
+    }
 
-  const { gameData, gameObjects, keyHandled } = scene;
+    if (isKeyDown("ArrowUp")) {
+      if (!newKeyHandled["ArrowUp"] && gameData.canJump) {
+        newMario = pipe(
+          newMario,
+          pipe(newMario.velocity, addV2(createV2(0, 1.4)), setVelocity)
+        );
+        newKeyHandled = { ...keysHandled, ArrowUp: true };
+        newGameData = {
+          ...newGameData,
+          canJump: false,
+        };
+      }
+    } else {
+      newKeyHandled = { ...keysHandled, ArrowUp: false };
+    }
+
+    return [newGameData, newKeyHandled, newMario];
+  };
+
+const updateScene = (scene: PlayableScene): PlayableScene => {
+  const {
+    gameData,
+    gameObjects,
+    keysHandled: keysHandled,
+    context: contextO,
+  } = scene;
 
   const marioIndex = gameObjects.findIndex((obj) =>
     pipe(obj.tag, O.elem(S.Eq)("mario"))
@@ -431,46 +481,14 @@ const updateScene = (scene: PlayableScene): PlayableScene => {
   const mario = gameObjects[marioIndex];
   const afterGameObjects = gameObjects.slice(marioIndex + 1);
 
-  let newMario = mario;
-  let newGameData = gameData;
-  let newKeyHandled = keyHandled;
   let jumpVelocity = zeroV2();
   let gravityVelocity = createV2(0, -0.1);
 
-  newMario = pipe(newMario, clearCurrentAnimation);
-
-  if (isKeyDown("ArrowLeft")) {
-    newMario = pipe(
-      newMario,
-      setVelocity(createV2(-0.5, newMario.velocity[1])),
-      setCurrentAnimation(Animations.MarioRun),
-      setDirection(createV2(-1, 0))
-    );
-    newGameData = { ...newGameData, marioDirection: "left" };
-  } else if (isKeyDown("ArrowRight")) {
-    newMario = pipe(
-      newMario,
-      setVelocity(createV2(0.5, newMario.velocity[1])),
-      setCurrentAnimation(Animations.MarioRun),
-      setDirection(createV2(1, 0))
-    );
-    newGameData = { ...newGameData, marioDirection: "right" };
-  } else {
-    newMario = pipe(newMario, setVelocity(createV2(0, newMario.velocity[1])));
-  }
-
-  if (isKeyDown("ArrowUp")) {
-    if (!keyHandled["ArrowUp"] && newGameData.canJump) {
-      jumpVelocity = createV2(0, 1.4);
-      newKeyHandled = { ...keyHandled, ArrowUp: true };
-      newGameData = {
-        ...newGameData,
-        canJump: false,
-      };
-    }
-  } else {
-    newKeyHandled = { ...keyHandled, ArrowUp: false };
-  }
+  let [newGameData, newKeyHandled, newMario] = pipe(
+    mario,
+    clearCurrentAnimation,
+    handleInput(gameData)(keysHandled)
+  );
 
   // Animation !!
   if (
@@ -501,7 +519,13 @@ const updateScene = (scene: PlayableScene): PlayableScene => {
     )
   );
 
-  bindBuffers(scene.context.webGLRenderingContext)(newMario);
+  pipe(
+    contextO,
+    O.map((context) => {
+      const { webGLRenderingContext } = context;
+      bindBuffers(webGLRenderingContext)(newMario);
+    })
+  );
 
   // Physics!!
 
@@ -515,10 +539,18 @@ const updateScene = (scene: PlayableScene): PlayableScene => {
 
   const elapsedTime = scene.currentTime - scene.previousTime;
 
-  newMario = movePosition(gl)(
-    newMario.velocity[0] * elapsedTime,
-    newMario.velocity[1] * elapsedTime
-  )(newMario);
+  pipe(
+    contextO,
+    O.map((context) => {
+      newMario = pipe(
+        newMario,
+        movePosition(context.webGLRenderingContext)(
+          newMario.velocity[0] * elapsedTime,
+          newMario.velocity[1] * elapsedTime
+        )
+      );
+    })
+  );
 
   const [collisionGameData, collisionMario] = pipe(
     gameObjects.slice(3, 12),
@@ -530,7 +562,7 @@ const updateScene = (scene: PlayableScene): PlayableScene => {
 
   return {
     ...scene,
-    keyHandled: newKeyHandled,
+    keysHandled: newKeyHandled,
     gameData: newGameData,
     gameObjects: [...beforeGameObjects, newMario, ...afterGameObjects],
   };

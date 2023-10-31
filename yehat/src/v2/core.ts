@@ -3,6 +3,7 @@ import * as A from "fp-ts/lib/Array";
 import * as E from "fp-ts/lib/Either";
 import { Either } from "fp-ts/lib/Either";
 import * as O from "fp-ts/lib/Option";
+import { Option } from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { TaskEither } from "fp-ts/lib/TaskEither";
@@ -49,7 +50,9 @@ export type GameData = Record<string, unknown>;
 
 export const VertexNumComponents2D = 2;
 
-export interface YehatScene2DCreated<T extends GameData = GameData> {
+export type KeyboardStateMap = Record<string, boolean>;
+
+export interface YehatScene2D<T extends GameData = GameData> {
   isInitialized: false;
   gameData: T;
   textures: Map<number, Texture>;
@@ -57,21 +60,10 @@ export interface YehatScene2DCreated<T extends GameData = GameData> {
   clearColor?: vec4;
   previousTime: number;
   currentTime: number;
-  keyHandled: Record<string, boolean>;
+  keysHandled: KeyboardStateMap;
   animationInterval: number;
+  context: Option<YehatContext>;
 }
-
-export type YehatScene2DInitialized<T extends GameData = GameData> = Omit<
-  YehatScene2DCreated<T>,
-  "isInitialized"
-> & {
-  isInitialized: true;
-  context: YehatContext;
-};
-
-export type YehatScene2D<T extends GameData = GameData> =
-  | YehatScene2DCreated<T>
-  | YehatScene2DInitialized<T>;
 
 export const calculateVertexCount2D = (gameObject: GameObject2D) =>
   gameObject.vertices.length / VertexNumComponents2D;
@@ -280,7 +272,7 @@ const initializeTexture =
 
 const initializeTextures =
   <T extends GameData>(gl: WebGLRenderingContext) =>
-  (scene: YehatScene2DCreated<T>): TaskEither<string, YehatScene2DCreated<T>> =>
+  (scene: YehatScene2D<T>): TaskEither<string, YehatScene2D<T>> =>
     pipe(
       scene.textures.entries(),
       Array.from<[number, Texture]>,
@@ -296,9 +288,7 @@ const initializeTextures =
 
 export const initializeDefaultScene2D =
   <T extends GameData>(gl: WebGLRenderingContext) =>
-  (
-    scene: YehatScene2DCreated<T>
-  ): TaskEither<string, YehatScene2DInitialized<T>> =>
+  (scene: YehatScene2D<T>): TaskEither<string, YehatScene2D<T>> =>
     pipe(
       scene,
       initializeTextures(gl),
@@ -316,127 +306,132 @@ export const initializeDefaultScene2D =
           TE.fromEither,
           TE.map((context) => ({
             ...scene,
-            isInitialized: true as const,
             clearColor: scene.clearColor ?? createV4(0, 0, 0, 1),
             gameObjects,
-            context,
+            context: O.some(context),
           }))
         )
       )
     );
 
-export const drawScene = <T extends GameData>(
-  scene: YehatScene2DInitialized<T>
-) => {
+export const drawScene = <T extends GameData>(scene: YehatScene2D<T>) => {
   const {
     clearColor = createV4(0, 0, 0, 0),
-    context: { webGLRenderingContext: gl, webGLProgram: program },
+    context: contextOption,
     gameObjects,
   } = scene;
 
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-  const [r, g, b, a] = clearColor;
-  gl.clearColor(r, g, b, a);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  pipe(
+    contextOption,
+    O.map((context) => {
+      const { webGLRenderingContext: gl, webGLProgram: program } = context;
+      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+      const [r, g, b, a] = clearColor;
+      gl.clearColor(r, g, b, a);
+      gl.clear(gl.COLOR_BUFFER_BIT);
 
-  // This here is to allow transparency for the textures (sprites mostly)
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      // This here is to allow transparency for the textures (sprites mostly)
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  for (const gameObject of gameObjects) {
-    gl.useProgram(program);
+      for (const gameObject of gameObjects) {
+        gl.useProgram(program);
 
-    const uScalingFactor = gl.getUniformLocation(program, "uScalingFactor");
-    const uGlobalColor = gl.getUniformLocation(program, "uGlobalColor");
-    const uRotationVector = gl.getUniformLocation(program, "uRotationVector");
-    const uTranslationVector = gl.getUniformLocation(
-      program,
-      "uTranslationVector"
-    );
-    const uHasTexture = gl.getUniformLocation(program, "uHasTexture");
-    const uTexture = gl.getUniformLocation(program, "uTexture");
+        const uScalingFactor = gl.getUniformLocation(program, "uScalingFactor");
+        const uGlobalColor = gl.getUniformLocation(program, "uGlobalColor");
+        const uRotationVector = gl.getUniformLocation(
+          program,
+          "uRotationVector"
+        );
+        const uTranslationVector = gl.getUniformLocation(
+          program,
+          "uTranslationVector"
+        );
+        const uHasTexture = gl.getUniformLocation(program, "uHasTexture");
+        const uTexture = gl.getUniformLocation(program, "uTexture");
 
-    gl.uniform2fv(uScalingFactor, gameObject.scale);
-    gl.uniform2fv(uRotationVector, gameObject.rotation);
-    gl.uniform2fv(uTranslationVector, gameObject.translation);
-    gl.uniform4fv(uGlobalColor, gameObject.color);
-    gl.uniform1i(uHasTexture, gameObject.texture._tag === "Some" ? 1 : 0);
-    gl.uniform1i(
-      uTexture,
-      gameObject.texture._tag === "Some" ? gameObject.texture.value : 0
-    );
+        gl.uniform2fv(uScalingFactor, gameObject.scale);
+        gl.uniform2fv(uRotationVector, gameObject.rotation);
+        gl.uniform2fv(uTranslationVector, gameObject.translation);
+        gl.uniform4fv(uGlobalColor, gameObject.color);
+        gl.uniform1i(uHasTexture, gameObject.texture._tag === "Some" ? 1 : 0);
+        gl.uniform1i(
+          uTexture,
+          gameObject.texture._tag === "Some" ? gameObject.texture.value : 0
+        );
 
-    const aVertexPosition = gl.getAttribLocation(program, "aVertexPosition");
-    const aTextureCoord = gl.getAttribLocation(program, "aTextureCoord");
-    pipe(
-      gameObject.vertexBuffer,
-      O.fold(
-        () => {
-          throw new Error("Oh noes");
-        },
-        (vertexBuffer) => {
-          gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-        }
-      )
-    );
+        const aVertexPosition = gl.getAttribLocation(
+          program,
+          "aVertexPosition"
+        );
+        const aTextureCoord = gl.getAttribLocation(program, "aTextureCoord");
+        pipe(
+          gameObject.vertexBuffer,
+          O.fold(
+            () => {
+              throw new Error("Oh noes");
+            },
+            (vertexBuffer) => {
+              gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            }
+          )
+        );
 
-    gl.vertexAttribPointer(
-      aVertexPosition,
-      VertexNumComponents2D,
-      gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    gl.enableVertexAttribArray(aVertexPosition);
+        gl.vertexAttribPointer(
+          aVertexPosition,
+          VertexNumComponents2D,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+        gl.enableVertexAttribArray(aVertexPosition);
 
-    pipe(
-      gameObject.textureCoordBuffer,
-      O.fold(
-        () => {
-          throw new Error("Oh noes");
-        },
-        (textureCoordBuffer) => {
-          gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-        }
-      )
-    );
+        pipe(
+          gameObject.textureCoordBuffer,
+          O.fold(
+            () => {
+              throw new Error("Oh noes");
+            },
+            (textureCoordBuffer) => {
+              gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+            }
+          )
+        );
 
-    gl.vertexAttribPointer(
-      aTextureCoord,
-      VertexNumComponents2D,
-      gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    gl.enableVertexAttribArray(aTextureCoord);
+        gl.vertexAttribPointer(
+          aTextureCoord,
+          VertexNumComponents2D,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+        gl.enableVertexAttribArray(aTextureCoord);
 
-    gl.drawArrays(
-      toWebGLDrawMode(gl)(gameObject.drawMode),
-      0,
-      calculateVertexCount2D(gameObject)
-    );
-  }
+        gl.drawArrays(
+          toWebGLDrawMode(gl)(gameObject.drawMode),
+          0,
+          calculateVertexCount2D(gameObject)
+        );
+      }
+    })
+  );
 
   return scene;
 };
 
 const updateTime =
-  <T extends GameData>(scene: YehatScene2DInitialized<T>) =>
-  (currentTime: number): YehatScene2DInitialized<T> => ({
+  <T extends GameData>(scene: YehatScene2D<T>) =>
+  (currentTime: number): YehatScene2D<T> => ({
     ...scene,
     previousTime: scene.currentTime,
     currentTime,
   });
 
 export const processGameTick =
-  <T extends GameData>(
-    updateScene: (s: YehatScene2DInitialized<T>) => YehatScene2DInitialized<T>
-  ) =>
-  (
-    scene: YehatScene2DInitialized<T>
-  ): TaskEither<string, YehatScene2DInitialized<T>> =>
+  <T extends GameData>(updateScene: (s: YehatScene2D<T>) => YehatScene2D<T>) =>
+  (scene: YehatScene2D<T>): TaskEither<string, YehatScene2D<T>> =>
     pipe(
       scene,
       updateScene,
@@ -445,7 +440,7 @@ export const processGameTick =
         pipe(
           requestAnimationFrameTask,
           T.map(updateTime(scene)),
-          TE.fromTask<YehatScene2DInitialized<T>, string>
+          TE.fromTask<YehatScene2D<T>, string>
         ),
       TE.chain(processGameTick(updateScene))
     );
