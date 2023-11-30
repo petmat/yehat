@@ -5,19 +5,25 @@ import * as E from "fp-ts/Either";
 import { Either } from "fp-ts/Either";
 import { Task } from "fp-ts/lib/Task";
 
-export const addEventListener =
-  <K extends keyof WindowEventMap>(type: K) =>
+export const addWindowEventListener =
   (options: AddEventListenerOptions) =>
+  <K extends keyof WindowEventMap>(type: K) =>
   (listener: (this: Window, ev: WindowEventMap[K]) => any) =>
   (window: Window) => {
     window.addEventListener(type, listener, options);
   };
 
-export const addLoadEventListener = addEventListener("load");
-
-export const addLoadEventListenerWithDefaults = addLoadEventListener({
+export const addWindowEventListenerWithDefaults = addWindowEventListener({
   capture: false,
 });
+
+export const addLoadEventListener = addWindowEventListenerWithDefaults("load");
+
+export const addKeydownEventListener =
+  addWindowEventListenerWithDefaults("keydown");
+
+export const addKeyupEventListener =
+  addWindowEventListenerWithDefaults("keyup");
 
 export const getElementById =
   (elementId: string) =>

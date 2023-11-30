@@ -1,4 +1,22 @@
 import { vec2, vec4 } from "gl-matrix";
+import { pipe } from "fp-ts/lib/function";
+import * as A from "fp-ts/lib/Array";
+
+export const multiply = (b: number) => (a: number) => a * b;
+
+export const sumPair = ([a, b]: [a: number, b: number]) => a + b;
+
+export const inverse = (num: number) => 1 - num;
+
+export const reciprocal = (num: number) => 1 / num;
+
+// Arrays
+
+export const addArray = (b: number[]) => (a: number[]) =>
+  pipe(a, A.zip(b), A.map(sumPair));
+
+export const multiplyArray = (a: number) => (arr: number[]) =>
+  pipe(arr, A.map(multiply(a)));
 
 // 2-dimensional vector
 
@@ -38,6 +56,8 @@ export const multiplyV2 =
     vec2.multiply(out, a, b);
     return out;
   };
+
+export const equalsV2 = (b: vec2) => (a: vec2) => vec2.equals(a, b);
 
 // 4-dimensional vector
 

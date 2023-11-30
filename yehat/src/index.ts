@@ -5,6 +5,7 @@ export const v1 = { legacy };
 
 // yehat 2
 import * as core from "./v2/core";
+import * as colors from "./v2/colors";
 import * as fn from "./v2/utils";
 import * as gameObject from "./v2/gameObject";
 import * as math from "./v2/math";

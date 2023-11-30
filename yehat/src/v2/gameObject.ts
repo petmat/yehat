@@ -46,61 +46,10 @@ export interface GameObject2D {
 export interface Texture {
   url: string;
 }
-
-export const calculateAspectRatio = (gl: WebGLRenderingContext) =>
-  gl.canvas.width / gl.canvas.height;
-
 export const assocGameObj =
   <T extends GameObject2D, K extends keyof T>(key: K) =>
   (val: T[K]) =>
   (obj: T): T => ({ ...obj, [key]: val });
-
-export const getAspectRatio = (gl: WebGLRenderingContext) =>
-  gl.canvas.width / gl.canvas.height;
-
-export const pxToWebGLCoords =
-  (gl: WebGLRenderingContext) =>
-  (coords: vec2): vec2 =>
-    pipe(
-      coords,
-      divideV2(createV2(gl.canvas.width, gl.canvas.height)),
-      multiplyV2(createV2(2, 2)),
-      flow(pipe(createV2(-1, -1), addV2))
-    );
-
-export const pxToWebGLScale =
-  (gl: WebGLRenderingContext) =>
-  (coords: vec2): vec2 =>
-    pipe(coords, divideV2(createV2(gl.canvas.width, gl.canvas.height)));
-
-export const pxToWebGLDelta =
-  (gl: WebGLRenderingContext) =>
-  (coords: vec2): vec2 =>
-    pipe(coords, divideV2(createV2(gl.canvas.width / 2, gl.canvas.height / 2)));
-
-export const createDefaultGameObject =
-  (gl: WebGLRenderingContext) => (): GameObject2D => ({
-    vertices: new Float32Array(),
-    translation: createV2(-1, -1),
-    previousTranslation: createV2(-1, -1),
-    velocity: zeroV2(),
-    scale: createV2(1.0, getAspectRatio(gl)),
-    rotation: createV2(0, 1),
-    color: createV4(1.0, 1.0, 1.0, 1.0),
-    drawMode: DrawMode.Triangles,
-    texture: O.none,
-    textureCoords: new Float32Array(),
-    textureFrameGridWidth: O.none,
-    defaultFrame: 0,
-    animations: {},
-    currentAnimation: O.none,
-    lastFrameChange: 0,
-    direction: rightV2(),
-    currentFrame: 0,
-    tag: O.none,
-    vertexBuffer: O.none,
-    textureCoordBuffer: O.none,
-  });
 
 export const setVertices =
   (vertices: Float32Array) =>
@@ -108,24 +57,6 @@ export const setVertices =
     pipe(gameObj, pipe(vertices, assocGameObj("vertices")));
 
 export const setScale = assocGameObj("scale");
-
-export const adjustForAspectRatio =
-  (gl: WebGLRenderingContext) => (coords: vec2) =>
-    pipe(coords, multiplyV2(createV2(1, getAspectRatio(gl))));
-
-export const setSize =
-  (gl: WebGLRenderingContext) => (width: number, height: number) =>
-    pipe(createV2(width, height), pxToWebGLScale(gl), assocGameObj("scale"));
-
-export const setPosition =
-  (gl: WebGLRenderingContext) => (x: number, y: number) =>
-    pipe(createV2(x, y), pxToWebGLCoords(gl), setTranslation);
-
-export const movePosition =
-  (gl: WebGLRenderingContext) =>
-  (deltaX: number, deltaY: number) =>
-  <T extends GameObject2D>(gameObject: T): T =>
-    pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate)(gameObject);
 
 export const translate =
   (delta: vec2) =>
@@ -157,50 +88,12 @@ export const setTexture = (texture: number) =>
 
 export const setTag = (tag: string) => assocGameObj("tag")(O.some(tag));
 
-export const setScaleLockAspectRatio =
-  (value: number) => (gl: WebGLRenderingContext) =>
-    setScale(createV2(value, calculateAspectRatio(gl) * value));
-
 const calculateGroupScaleOffsetStep = (
   value: number,
   prevScale: number,
   scalePx: number,
   canvasWidth: number
 ) => (canvasWidth / scalePx - 2) / (prevScale / value);
-
-const calculateGroupScaleOffset = (
-  index: number,
-  value: number,
-  prevScale: number,
-  scalePx: number,
-  canvasWidth: number
-) =>
-  index *
-  calculateGroupScaleOffsetStep(value, prevScale, scalePx, canvasWidth) *
-  -1;
-
-export const setGroupScaleLockAspectRatio =
-  (value: number, scalePx: number) =>
-  (gl: WebGLRenderingContext) =>
-  (gameObjects: GameObject2D[]): GameObject2D[] =>
-    gameObjects
-      .map((gameObject, index) =>
-        translate(
-          createV2(
-            pipe(
-              calculateGroupScaleOffset(
-                index,
-                value,
-                gameObject.scale[0],
-                scalePx,
-                gl.canvas.width
-              )
-            ),
-            0
-          )
-        )(gameObject)
-      )
-      .map(setScale(createV2(value, calculateAspectRatio(gl) * value)));
 
 const calculateGroupSizeOffset = (
   index: number,
@@ -211,28 +104,6 @@ const calculateGroupSizeOffset = (
   index *
   calculateGroupScaleOffsetStep(width, prevScale, width, canvasWidth) *
   -1;
-
-export const setGroupSize =
-  (gl: WebGLRenderingContext) =>
-  (width: number, height: number) =>
-  (gameObjects: GameObject2D[]): GameObject2D[] =>
-    gameObjects
-      .map((gameObject, index) =>
-        translate(
-          createV2(
-            pipe(
-              calculateGroupSizeOffset(
-                index,
-                width,
-                gameObject.scale[0] * gl.canvas.width,
-                gl.canvas.width
-              )
-            ),
-            0
-          )
-        )(gameObject)
-      )
-      .map(setSize(gl)(width, height));
 
 export const emptyTextures = () => new Map<number, Texture>();
 
@@ -291,3 +162,96 @@ export const setDirection =
 export const setCurrentFrame = assocGameObj("currentFrame");
 
 export const setLastFrameChange = assocGameObj("lastFrameChange");
+
+// Aspect ratio dependent functions
+
+const calculateAspectRatio = (gl: WebGLRenderingContext) =>
+  gl.canvas.width / gl.canvas.height;
+
+const pxToWebGLCoords =
+  (gl: WebGLRenderingContext) =>
+  (coords: vec2): vec2 =>
+    pipe(
+      coords,
+      divideV2(createV2(gl.canvas.width, gl.canvas.height)),
+      multiplyV2(createV2(2, 2)),
+      flow(pipe(createV2(-1, -1), addV2))
+    );
+
+const pxToWebGLScale =
+  (gl: WebGLRenderingContext) =>
+  (coords: vec2): vec2 =>
+    pipe(coords, divideV2(createV2(gl.canvas.width, gl.canvas.height)));
+
+const pxToWebGLDelta =
+  (gl: WebGLRenderingContext) =>
+  (coords: vec2): vec2 =>
+    pipe(coords, divideV2(createV2(gl.canvas.width / 2, gl.canvas.height / 2)));
+
+export const createDefaultGameObject =
+  (gl: WebGLRenderingContext) => (): GameObject2D => ({
+    vertices: new Float32Array(),
+    translation: createV2(-1, -1),
+    previousTranslation: createV2(-1, -1),
+    velocity: zeroV2(),
+    scale: createV2(1.0, calculateAspectRatio(gl)),
+    rotation: createV2(0, 1),
+    color: createV4(1.0, 1.0, 1.0, 1.0),
+    drawMode: DrawMode.Triangles,
+    texture: O.none,
+    textureCoords: new Float32Array(),
+    textureFrameGridWidth: O.none,
+    defaultFrame: 0,
+    animations: {},
+    currentAnimation: O.none,
+    lastFrameChange: 0,
+    direction: rightV2(),
+    currentFrame: 0,
+    tag: O.none,
+    vertexBuffer: O.none,
+    textureCoordBuffer: O.none,
+  });
+
+export const setSize =
+  (gl: WebGLRenderingContext) => (width: number, height: number) =>
+    pipe(createV2(width, height), pxToWebGLScale(gl), assocGameObj("scale"));
+
+export const setPosition =
+  (gl: WebGLRenderingContext) => (x: number, y: number) =>
+    pipe(createV2(x, y), pxToWebGLCoords(gl), setTranslation);
+
+export const movePosition =
+  (gl: WebGLRenderingContext) =>
+  (deltaX: number, deltaY: number) =>
+  <T extends GameObject2D>(gameObject: T): T =>
+    pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate)(gameObject);
+
+export const setGroupSize =
+  (gl: WebGLRenderingContext) =>
+  (width: number, height: number) =>
+  (gameObjects: GameObject2D[]): GameObject2D[] =>
+    gameObjects
+      .map((gameObject, index) =>
+        translate(
+          createV2(
+            pipe(
+              calculateGroupSizeOffset(
+                index,
+                width,
+                gameObject.scale[0] * gl.canvas.width,
+                gl.canvas.width
+              )
+            ),
+            0
+          )
+        )(gameObject)
+      )
+      .map(setSize(gl)(width, height));
+
+export const getAspectRatioCoreFns = (gl: WebGLRenderingContext) => ({
+  createDefaultGameObject: createDefaultGameObject(gl),
+  setSize: setSize(gl),
+  setPosition: setPosition(gl),
+  movePosition: movePosition(gl),
+  setGroupSize: setGroupSize(gl),
+});

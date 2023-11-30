@@ -1,99 +1,98 @@
-import { flow, pipe } from "fp-ts/lib/function";
+import { pipe } from "fp-ts/lib/function";
 import * as TE from "fp-ts/lib/TaskEither";
 
 import { vec2, vec4 } from "gl-matrix";
 
 import {
   GameData,
-  YehatScene2DCreated,
-  YehatScene2DInitialized,
+  YehatScene2D,
+  createYehat2DScene,
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
 } from "@yehat/yehat/src/v2/core";
-import { createV4 } from "@yehat/yehat/src/v2/math";
 import {
-  createRectangle,
   createCircleShape,
   createTriangleShape,
   getCircleDrawMode,
   createCircleTextureCoords,
   getTriangleDrawMode,
   createTriangleTextureCoords,
+  createRectangleShape,
+  getRectangleDrawMode,
+  createRectangleTextureCoords,
 } from "@yehat/yehat/src/v2/shapes";
 import { assoc } from "@yehat/yehat/src/v2/utils";
 import {
-  GameObject2D,
+  getAspectRatioCoreFns,
   setColor,
   setDrawMode,
-  setPosition,
   setRotation,
-  setSize,
   setTextureCoords,
   setVertices,
 } from "@yehat/yehat/src/v2/gameObject";
+import { blue, green, red } from "@yehat/yehat/src/v2/colors";
 
 interface HelloWorldGameData extends GameData {
   currentAngle: number;
-  previousTime: number;
-  currentTime: number;
   degreesPerSecond: number;
 }
 
-type HelloWorldScene = YehatScene2DInitialized<HelloWorldGameData>;
+type HelloWorldScene = YehatScene2D<HelloWorldGameData>;
 
-const setSize100 = (gl: WebGLRenderingContext) => setSize(gl)(100, 100);
+const createScene = (gl: WebGLRenderingContext): HelloWorldScene => {
+  const { createDefaultGameObject, setPosition, setSize } =
+    getAspectRatioCoreFns(gl);
 
-const red = createV4(0.7, 0.1, 0.2, 1.0);
-const blue = createV4(0.2, 0.1, 0.7, 1.0);
-const green = createV4(0.1, 0.7, 0.2, 1.0);
+  const setSize100 = setSize(100, 100);
 
-const createSize100GameObject = (gl: WebGLRenderingContext) =>
-  flow(createRectangle(gl), setSize100(gl));
+  const createSize100DefaultGameObject =
+    (x: number, y: number) => (color: vec4) =>
+      pipe(
+        createDefaultGameObject(),
+        setSize100,
+        setPosition(x, y),
+        setColor(color)
+      );
 
-const createSize100Circle =
-  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
+  const createSize100Rectangle = (x: number, y: number) => (color: vec4) =>
     pipe(
-      createSize100GameObject(gl)(),
+      createSize100DefaultGameObject(x, y)(color),
+      pipe(createRectangleShape(), setVertices),
+      pipe(getRectangleDrawMode(), setDrawMode),
+      pipe(createRectangleTextureCoords(), setTextureCoords)
+    );
+
+  const createSize100Circle = (x: number, y: number) => (color: vec4) =>
+    pipe(
+      createSize100DefaultGameObject(x, y)(color),
       pipe(createCircleShape(), setVertices),
       pipe(getCircleDrawMode(), setDrawMode),
-      pipe(createCircleTextureCoords(), setTextureCoords),
-      setPosition(gl)(x, y),
-      setColor(color)
+      pipe(createCircleTextureCoords(), setTextureCoords)
     );
 
-const createSize100Triangle =
-  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
+  const createSize100Triangle = (x: number, y: number) => (color: vec4) =>
     pipe(
-      createSize100GameObject(gl)(),
+      createSize100DefaultGameObject(x, y)(color),
       pipe(createTriangleShape(), setVertices),
       pipe(getTriangleDrawMode(), setDrawMode),
-      pipe(createTriangleTextureCoords(), setTextureCoords),
-      setPosition(gl)(x, y),
-      setColor(color)
+      pipe(createTriangleTextureCoords(), setTextureCoords)
     );
 
-const createSize100Rectangle =
-  (gl: WebGLRenderingContext) => (x: number, y: number) => (color: vec4) =>
-    pipe(createSize100GameObject(gl)(), setPosition(gl)(x, y), setColor(color));
-
-const createScene = (
-  gl: WebGLRenderingContext
-): YehatScene2DCreated<HelloWorldGameData> => ({
-  isInitialized: false,
-  gameData: {
-    previousTime: 0,
-    currentTime: 0,
-    currentAngle: 0.0,
-    degreesPerSecond: 90,
-  },
-  textures: new Map(),
-  gameObjects: [
-    createSize100Circle(gl)(160, 240)(red),
-    createSize100Triangle(gl)(320, 240)(blue),
-    createSize100Rectangle(gl)(480, 240)(green),
-  ],
-});
+  return createYehat2DScene(gl)({
+    gameData: {
+      previousTime: 0,
+      currentTime: 0,
+      currentAngle: 0.0,
+      degreesPerSecond: 90,
+    },
+    gameObjects: [
+      createSize100Circle(160, 240)(red),
+      createSize100Triangle(320, 240)(blue),
+      createSize100Rectangle(480, 240)(green),
+    ],
+  });
+};
 
 const calculateRotation = (currentAngle: number): vec2 => {
   const radians = (currentAngle * Math.PI) / 180.0;
@@ -110,44 +109,41 @@ const incrementCurrentAngle =
   (deltaAngle: number): number =>
     (currentAngle + deltaAngle) % 360;
 
-const updateScene = (scene: HelloWorldScene): HelloWorldScene => {
-  const { gameData, gameObjects } = scene;
+const updateScene =
+  (_gl: WebGLRenderingContext) =>
+  (scene: HelloWorldScene): HelloWorldScene => {
+    const { gameData, gameObjects, previousTime, currentTime } = scene;
 
-  const { currentAngle, previousTime, currentTime, degreesPerSecond } =
-    gameData;
+    const { currentAngle, degreesPerSecond } = gameData;
 
-  const [circle, triangle, rectangle] = gameObjects;
+    const [circle, triangle, rectangle] = gameObjects;
 
-  return {
-    ...scene,
-    gameData: pipe(
-      gameData,
-      assoc<HelloWorldGameData, "currentAngle">("currentAngle")(
-        pipe(
-          degreesPerSecond,
-          calculateDeltaAngle(previousTime, currentTime),
-          incrementCurrentAngle(currentAngle)
+    return {
+      ...scene,
+      gameData: pipe(
+        gameData,
+        assoc<HelloWorldGameData, "currentAngle">("currentAngle")(
+          pipe(
+            degreesPerSecond,
+            calculateDeltaAngle(previousTime, currentTime),
+            incrementCurrentAngle(currentAngle)
+          )
         )
       ),
-      assoc<HelloWorldGameData, "previousTime">("previousTime")(currentTime)
-    ),
-    gameObjects: [
-      circle,
-      triangle,
-      pipe(
-        rectangle,
-        setRotation(calculateRotation(currentAngle))
-      ) as GameObject2D,
-    ],
+      gameObjects: [
+        circle,
+        triangle,
+        pipe(rectangle, setRotation(calculateRotation(currentAngle))),
+      ],
+    };
   };
-};
 
 const startup = (gl: WebGLRenderingContext) =>
   pipe(
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(updateScene))
+    TE.chain(pipe(updateScene, processGameTick(gl)))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));

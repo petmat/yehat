@@ -1,4 +1,5 @@
 import * as E from "fp-ts/lib/Either";
+import * as TE from "fp-ts/lib/TaskEither";
 import { Either } from "fp-ts/lib/Either";
 import { pipe } from "fp-ts/lib/function";
 import { vec2 } from "gl-matrix";
@@ -27,6 +28,13 @@ export const log = <T>(...data: unknown[]) =>
 
 export const logE = <T>(...data: unknown[]) =>
   E.map(
+    tap((a: T) => {
+      console.log(...data, a);
+    })
+  );
+
+export const logTE = <T>(...data: unknown[]) =>
+  TE.map(
     tap((a: T) => {
       console.log(...data, a);
     })

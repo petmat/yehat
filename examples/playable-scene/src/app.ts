@@ -7,14 +7,16 @@ import { vec2 } from "gl-matrix";
 
 import {
   GameData,
-  KeyboardStateMap,
   YehatScene2D,
   bindBuffers,
+  getTextureCoordsForFrame,
   initializeDefaultScene2D,
+  isKeyDown,
   loadGame,
   processGameTick,
-  rgb,
+  setIsKeyDown,
 } from "@yehat/yehat/src/v2/core";
+import { rgb } from "@yehat/yehat/src/v2/colors";
 import {
   createRectangle,
   createSprite,
@@ -69,60 +71,9 @@ enum Animations {
   MarioRun,
 }
 
-let keysDown: KeyboardStateMap = {};
-
-const isKeyDown = (key: string): boolean => !!keysDown[key];
-
-const setIsKeyDown = (key: string, isDown: boolean): void => {
-  keysDown = { ...keysDown, [key]: isDown };
-};
-
-interface PlayableGameData extends GameData {
-  canJump: boolean;
-}
+interface PlayableGameData extends GameData {}
 
 type PlayableScene = YehatScene2D<PlayableGameData>;
-
-const gridSizeToCoord = (gridSize: number) => 1 / gridSize;
-
-const getTextureCoordsForFrame =
-  (gridSize: number) => (direction: vec2) => (frameIndex: number) => {
-    const step = gridSizeToCoord(gridSize);
-    const xIndex = frameIndex % gridSize;
-    const yIndex = Math.floor(frameIndex / gridSize);
-
-    if (direction[0] === 1 && direction[1] === 0) {
-      return new Float32Array([
-        step * xIndex,
-        1 - step * yIndex,
-        step * (xIndex + 1),
-        1 - step * yIndex,
-        step * (xIndex + 1),
-        1 - step * (yIndex + 1),
-        step * xIndex,
-        1 - step * yIndex,
-        step * (xIndex + 1),
-        1 - step * (yIndex + 1),
-        step * xIndex,
-        1 - step * (yIndex + 1),
-      ]);
-    }
-
-    return new Float32Array([
-      step * (xIndex + 1),
-      1 - step * yIndex,
-      step * xIndex,
-      1 - step * yIndex,
-      step * xIndex,
-      1 - step * (yIndex + 1),
-      step * (xIndex + 1),
-      1 - step * yIndex,
-      step * xIndex,
-      1 - step * (yIndex + 1),
-      step * (xIndex + 1),
-      1 - step * (yIndex + 1),
-    ]);
-  };
 
 const createTile =
   (width: number, height: number) =>
@@ -168,6 +119,7 @@ const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
     setPosition(gl)(x, y),
     setTexture(Textures.MarioSprite),
     setTextureFrameGridWidth(4),
+    setCurrentFrame(1),
     setDefaultFrame(1),
     addAnimation(Animations.MarioRun, [2, 3, 4]),
     setTag("mario")
@@ -254,17 +206,12 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 const createScene = (
   gl: WebGLRenderingContext
 ): YehatScene2D<PlayableGameData> => ({
-  isInitialized: false as const,
   clearColor: rgb(127, 149, 255),
   currentTime: 0,
   previousTime: 0,
   keysHandled: {},
   animationInterval: 1000 / 12,
-  gameData: {
-    marioFrameIndex: 1,
-    marioDirection: "right",
-    canJump: true,
-  },
+  gameData: {},
   textures: pipe(
     emptyTextures(),
     addTexture(Textures.Bush, "assets/textures/bush.png"),
@@ -286,7 +233,8 @@ const createScene = (
     addTexture(Textures.Coin, "assets/textures/coin.png")
   ),
   gameObjects: createGameObjects(gl),
-  context: O.none,
+  webGLRenderingContext: gl,
+  yehatContext: O.none,
 });
 
 interface Rectangle {
@@ -443,7 +391,11 @@ const handleInput =
         setDirection(createV2(1, 0))
       );
     } else {
-      newMario = pipe(newMario, setVelocity(createV2(0, newMario.velocity[1])));
+      newMario = pipe(
+        newMario,
+        setVelocity(createV2(0, newMario.velocity[1])),
+        pipe(newMario.defaultFrame, setCurrentFrame)
+      );
     }
 
     if (isKeyDown("ArrowUp")) {
@@ -465,123 +417,101 @@ const handleInput =
     return [newGameData, newKeyHandled, newMario];
   };
 
-const updateScene = (scene: PlayableScene): PlayableScene => {
-  const {
-    gameData,
-    gameObjects,
-    keysHandled: keysHandled,
-    context: contextO,
-  } = scene;
+const updateScene =
+  (gl: WebGLRenderingContext) =>
+  (scene: PlayableScene): PlayableScene => {
+    const { gameData, gameObjects, keysHandled: keysHandled } = scene;
 
-  const marioIndex = gameObjects.findIndex((obj) =>
-    pipe(obj.tag, O.elem(S.Eq)("mario"))
-  );
+    const marioIndex = gameObjects.findIndex((obj) =>
+      pipe(obj.tag, O.elem(S.Eq)("mario"))
+    );
 
-  const beforeGameObjects = gameObjects.slice(0, marioIndex);
-  const mario = gameObjects[marioIndex];
-  const afterGameObjects = gameObjects.slice(marioIndex + 1);
+    const beforeGameObjects = gameObjects.slice(0, marioIndex);
+    const mario = gameObjects[marioIndex];
+    const afterGameObjects = gameObjects.slice(marioIndex + 1);
 
-  let jumpVelocity = zeroV2();
-  let gravityVelocity = createV2(0, -0.1);
+    let jumpVelocity = zeroV2();
+    let gravityVelocity = createV2(0, -0.1);
 
-  let [newGameData, newKeyHandled, newMario] = pipe(
-    mario,
-    clearCurrentAnimation,
-    handleInput(gameData)(keysHandled)
-  );
+    let [newGameData, newKeyHandled, newMario] = pipe(
+      mario,
+      clearCurrentAnimation,
+      handleInput(gameData)(keysHandled)
+    );
 
-  // Animation !!
-  if (
-    newMario.currentAnimation._tag === "Some" &&
-    scene.currentTime - newMario.lastFrameChange >= scene.animationInterval
-  ) {
-    console.log("animate!");
+    // Animation !!
+    if (
+      newMario.currentAnimation._tag === "Some" &&
+      scene.currentTime - newMario.lastFrameChange >= scene.animationInterval
+    ) {
+      console.log("animate!");
+      newMario = pipe(
+        newMario,
+        pipe(
+          nextFrame(
+            newMario.currentFrame,
+            newMario.currentAnimation.value,
+            newMario.animations
+          ),
+          setCurrentFrame
+        ),
+        pipe(scene.currentTime, setLastFrameChange)
+      );
+    }
+
     newMario = pipe(
       newMario,
       pipe(
-        nextFrame(
-          newMario.currentFrame,
-          newMario.currentAnimation.value,
-          newMario.animations
-        ),
-        setCurrentFrame
-      ),
-      pipe(scene.currentTime, setLastFrameChange)
+        newMario.currentFrame,
+        pipe(newMario.direction, getTextureCoordsForFrame(4)),
+        setTextureCoords
+      )
     );
-  }
 
-  newMario = pipe(
-    newMario,
-    pipe(
-      newMario.currentFrame,
-      pipe(newMario.direction, getTextureCoordsForFrame(4)),
-      setTextureCoords
-    )
-  );
+    bindBuffers(gl)(newMario);
 
-  pipe(
-    contextO,
-    O.map((context) => {
-      const { webGLRenderingContext } = context;
-      bindBuffers(webGLRenderingContext)(newMario);
-    })
-  );
+    // Physics!!
 
-  // Physics!!
+    const newVelocity = pipe(
+      newMario.velocity,
+      addV2(jumpVelocity),
+      addV2(gravityVelocity)
+    );
 
-  const newVelocity = pipe(
-    newMario.velocity,
-    addV2(jumpVelocity),
-    addV2(gravityVelocity)
-  );
+    newMario = pipe(newMario, setVelocity(newVelocity));
 
-  newMario = pipe(newMario, setVelocity(newVelocity));
+    const elapsedTime = scene.currentTime - scene.previousTime;
 
-  const elapsedTime = scene.currentTime - scene.previousTime;
+    newMario = pipe(
+      newMario,
+      movePosition(gl)(
+        newMario.velocity[0] * elapsedTime,
+        newMario.velocity[1] * elapsedTime
+      )
+    );
 
-  pipe(
-    contextO,
-    O.map((context) => {
-      newMario = pipe(
-        newMario,
-        movePosition(context.webGLRenderingContext)(
-          newMario.velocity[0] * elapsedTime,
-          newMario.velocity[1] * elapsedTime
-        )
-      );
-    })
-  );
+    const [collisionGameData, collisionMario] = pipe(
+      gameObjects.slice(3, 12),
+      detectCollisions(newGameData)(newMario)
+    );
 
-  const [collisionGameData, collisionMario] = pipe(
-    gameObjects.slice(3, 12),
-    detectCollisions(newGameData)(newMario)
-  );
+    newGameData = collisionGameData;
+    newMario = collisionMario;
 
-  newGameData = collisionGameData;
-  newMario = collisionMario;
-
-  return {
-    ...scene,
-    keysHandled: newKeyHandled,
-    gameData: newGameData,
-    gameObjects: [...beforeGameObjects, newMario, ...afterGameObjects],
+    return {
+      ...scene,
+      keysHandled: newKeyHandled,
+      gameData: newGameData,
+      gameObjects: [...beforeGameObjects, newMario, ...afterGameObjects],
+    };
   };
-};
 
 const startup = (gl: WebGLRenderingContext) =>
   pipe(
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(updateScene))
+    TE.chain(pipe(updateScene, processGameTick(gl)))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));
-
-document.addEventListener("keydown", (event) => {
-  setIsKeyDown(event.key, true);
-});
-
-document.addEventListener("keyup", (event) => {
-  setIsKeyDown(event.key, false);
-});

@@ -1,28 +1,27 @@
 import * as A from "fp-ts/lib/Array";
+import * as O from "fp-ts/lib/Option";
 import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 
 import {
   GameData,
-  GameObject2DInitialized,
-  YehatScene2DCreated,
-  YehatScene2DInitialized,
+  YehatScene2D,
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
-  rgb,
 } from "@yehat/yehat/src/v2/core";
 import {
+  GameObject2D,
   addTexture,
-  createSprite,
-  createText,
   emptyTextures,
   movePosition,
   setGroupSize,
   setPosition,
   setSize,
   setTexture,
-} from "@yehat/yehat/src/v2/shapes";
+} from "@yehat/yehat/src/v2/gameObject";
+import { createSprite, createText } from "@yehat/yehat/src/v2/shapes";
+import { rgb } from "@yehat/yehat/src/v2/colors";
 
 enum Textures {
   Mario,
@@ -33,7 +32,7 @@ interface KeyboardInputGameData extends GameData {
   moved: boolean;
 }
 
-type KeyboardInputScene = YehatScene2DInitialized<KeyboardInputGameData>;
+type KeyboardInputScene = YehatScene2D<KeyboardInputGameData>;
 
 let keyboardState: { [key: string]: boolean } = {};
 
@@ -80,9 +79,13 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 
 const createScene = (
   gl: WebGLRenderingContext
-): YehatScene2DCreated<KeyboardInputGameData> => ({
+): YehatScene2D<KeyboardInputGameData> => ({
   isInitialized: false as const,
   clearColor: rgb(127, 149, 255),
+  currentTime: 0,
+  previousTime: 0,
+  keysHandled: {},
+  animationInterval: 1000 / 12,
   gameData: {
     moved: false,
   },
@@ -92,59 +95,56 @@ const createScene = (
     addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png")
   ),
   gameObjects: createGameObjects(gl),
+  context: O.none,
 });
 
-const updateScene = (scene: KeyboardInputScene): KeyboardInputScene => {
-  const gl = scene.context.webGLRenderingContext;
+const handleInput =
+  (gl: WebGLRenderingContext) =>
+  (gameData: KeyboardInputGameData) =>
+  (mario: GameObject2D) => {
+    if (isKeyDown("ArrowLeft")) {
+      const newM = movePosition(gl)(-6, 0)(mario);
+      const newGD = { ...gameData, moved: true };
+      return [newGD, newM] as const;
+    }
 
-  const { gameData, gameObjects } = scene;
+    if (isKeyDown("ArrowRight")) {
+      const newM = movePosition(gl)(6, 0)(mario);
+      const newGD = { ...gameData, moved: true };
+      return [newGD, newM] as const;
+    }
 
-  const [mario, ...restGameObjects] = gameObjects;
-
-  let newMario = mario;
-  let newGameData = gameData;
-
-  if (isKeyDown("ArrowLeft")) {
-    newMario = movePosition(gl)(-6, 0)(mario) as GameObject2DInitialized;
-    newGameData = { ...gameData, moved: true };
-  }
-
-  if (isKeyDown("ArrowRight")) {
-    newMario = movePosition(gl)(6, 0)(mario) as GameObject2DInitialized;
-    newGameData = { ...gameData, moved: true };
-  }
-
-  return {
-    ...scene,
-    gameData: newGameData,
-    gameObjects: [newMario, ...restGameObjects],
+    return [gameData, mario] as const;
   };
-};
+
+const updateScene =
+  (gl: WebGLRenderingContext) =>
+  (scene: KeyboardInputScene): KeyboardInputScene => {
+    const { gameData, gameObjects } = scene;
+
+    const [mario, ...restGameObjects] = gameObjects;
+
+    const [newGameData, newMario] = handleInput(gl)(gameData)(mario);
+
+    return {
+      ...scene,
+      gameData: newGameData,
+      gameObjects: [newMario, ...restGameObjects],
+    };
+  };
 
 const startup = (gl: WebGLRenderingContext) =>
   pipe(
     gl,
     createScene,
     initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(updateScene))
+    TE.chain(pipe(updateScene, processGameTick(gl)))
   );
 
 pipe(startup, loadGame(window)("#glcanvas"));
 
 document.addEventListener("keydown", (event) => {
   setIsKeyDown(event.key, true);
-  if (event.key === "ArrowUp") {
-    console.log("Jump!!!");
-  }
-  if (event.key === "ArrowDown") {
-    console.log("Crouch?");
-  }
-  if (event.key === "ArrowLeft") {
-    console.log("Move left!");
-  }
-  if (event.key === "ArrowRight") {
-    console.log("Move right!");
-  }
 });
 
 document.addEventListener("keyup", (event) => {

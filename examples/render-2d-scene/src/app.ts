@@ -1,19 +1,16 @@
 import * as A from "fp-ts/lib/Array";
+import * as O from "fp-ts/lib/Option";
 import * as TE from "fp-ts/lib/TaskEither";
 import { identity, pipe } from "fp-ts/lib/function";
 
 import {
-  YehatScene2DCreated,
+  YehatScene2D,
   initializeDefaultScene2D,
   loadGame,
   processGameTick,
-  rgb,
 } from "@yehat/yehat/src/v2/core";
 import {
   addTexture,
-  createRectangle,
-  createSprite,
-  createText,
   emptyTextures,
   movePosition,
   setGroupSize,
@@ -21,7 +18,13 @@ import {
   setSize,
   setTexture,
   setTextureCoords,
+} from "@yehat/yehat/src/v2/gameObject";
+import {
+  createRectangle,
+  createSprite,
+  createText,
 } from "@yehat/yehat/src/v2/shapes";
+import { rgb } from "@yehat/yehat/src/v2/colors";
 
 enum Textures {
   Bush,
@@ -160,9 +163,13 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
   ];
 };
 
-const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
+const createScene = (gl: WebGLRenderingContext): YehatScene2D => ({
   isInitialized: false as const,
   clearColor: rgb(127, 149, 255),
+  currentTime: 0,
+  previousTime: 0,
+  keysHandled: {},
+  animationInterval: 1000 / 12,
   gameData: {},
   textures: pipe(
     emptyTextures(),
@@ -184,6 +191,7 @@ const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
     addTexture(Textures.Coin, "assets/textures/coin.png")
   ),
   gameObjects: createGameObjects(gl),
+  context: O.none,
 });
 
 const startup = (gl: WebGLRenderingContext) =>

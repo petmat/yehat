@@ -8,7 +8,7 @@ import * as T from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { TaskEither } from "fp-ts/lib/TaskEither";
 
-import { vec4 } from "gl-matrix";
+import { vec2, vec4 } from "gl-matrix";
 
 import {
   attachShader,
@@ -20,14 +20,24 @@ import {
 } from "./webGL";
 import { tap, tapE } from "./utils";
 import {
-  addLoadEventListenerWithDefaults,
+  addKeydownEventListener,
+  addKeyupEventListener,
+  addLoadEventListener,
   getCanvasElement,
   getWebGLContext,
   requestAnimationFrameTask,
 } from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
-import { createV4 } from "./math";
+import {
+  addArray,
+  createV4,
+  equalsV2,
+  inverse,
+  multiplyArray,
+  reciprocal,
+  rightV2,
+} from "./math";
 import type { GameObject2D, Texture } from "./gameObject";
 import { DrawMode } from "./gameObject";
 
@@ -53,17 +63,27 @@ export const VertexNumComponents2D = 2;
 export type KeyboardStateMap = Record<string, boolean>;
 
 export interface YehatScene2D<T extends GameData = GameData> {
-  isInitialized: false;
   gameData: T;
-  textures: Map<number, Texture>;
   gameObjects: GameObject2D[];
-  clearColor?: vec4;
+  textures: Map<number, Texture>;
+  clearColor: vec4;
   previousTime: number;
   currentTime: number;
   keysHandled: KeyboardStateMap;
   animationInterval: number;
-  context: Option<YehatContext>;
+  webGLRenderingContext: WebGLRenderingContext;
+  yehatContext: Option<YehatContext>;
 }
+
+export interface YehatScene2DOptions<T extends GameData = GameData> {
+  gameData: T;
+  gameObjects: GameObject2D[];
+  textures?: Map<number, Texture>;
+  clearColor?: vec4;
+  animationInterval?: number;
+}
+
+export const toFloat32Array = (arr: number[]) => new Float32Array(arr);
 
 export const calculateVertexCount2D = (gameObject: GameObject2D) =>
   gameObject.vertices.length / VertexNumComponents2D;
@@ -85,6 +105,21 @@ export const toWebGLDrawMode =
         throw new Error(`Unsupported draw mode: ${drawMode}`);
     }
   };
+
+export const createYehat2DScene =
+  (gl: WebGLRenderingContext) =>
+  <T extends GameData>(options: YehatScene2DOptions<T>): YehatScene2D<T> => ({
+    gameData: options.gameData,
+    gameObjects: options.gameObjects,
+    textures: options.textures ?? new Map<number, Texture>(),
+    clearColor: options.clearColor ?? createV4(0, 0, 0, 1),
+    currentTime: 0,
+    previousTime: 0,
+    keysHandled: {},
+    animationInterval: options.animationInterval ?? 1000 / 12,
+    webGLRenderingContext: gl,
+    yehatContext: O.none,
+  });
 
 export const buildShader =
   (gl: WebGLRenderingContext) =>
@@ -304,12 +339,14 @@ export const initializeDefaultScene2D =
         pipe(
           initializeDefaultYehatContext(gl),
           TE.fromEither,
-          TE.map((context) => ({
-            ...scene,
-            clearColor: scene.clearColor ?? createV4(0, 0, 0, 1),
-            gameObjects,
-            context: O.some(context),
-          }))
+          TE.map(
+            (context): YehatScene2D<T> => ({
+              ...scene,
+              clearColor: scene.clearColor,
+              gameObjects,
+              yehatContext: O.some(context),
+            })
+          )
         )
       )
     );
@@ -317,7 +354,7 @@ export const initializeDefaultScene2D =
 export const drawScene = <T extends GameData>(scene: YehatScene2D<T>) => {
   const {
     clearColor = createV4(0, 0, 0, 0),
-    context: contextOption,
+    yehatContext: contextOption,
     gameObjects,
   } = scene;
 
@@ -430,11 +467,16 @@ const updateTime =
   });
 
 export const processGameTick =
-  <T extends GameData>(updateScene: (s: YehatScene2D<T>) => YehatScene2D<T>) =>
+  (gl: WebGLRenderingContext) =>
+  <T extends GameData>(
+    updateScene: (
+      gl: WebGLRenderingContext
+    ) => (s: YehatScene2D<T>) => YehatScene2D<T>
+  ) =>
   (scene: YehatScene2D<T>): TaskEither<string, YehatScene2D<T>> =>
     pipe(
       scene,
-      updateScene,
+      updateScene(gl),
       drawScene,
       (scene) =>
         pipe(
@@ -442,7 +484,7 @@ export const processGameTick =
           T.map(updateTime(scene)),
           TE.fromTask<YehatScene2D<T>, string>
         ),
-      TE.chain(processGameTick(updateScene))
+      TE.chain(processGameTick(gl)(updateScene))
     );
 
 export type Startup = (
@@ -465,24 +507,74 @@ export const loadGame =
   (window: Window) => (canvasSelector: string) => (startup: Startup) =>
     pipe(
       window,
-      addLoadEventListenerWithDefaults(
+      addLoadEventListener(
         onLoad(getCanvasElement(canvasSelector)(document))(startup)
       )
     );
 
-// Colors
+const turnLeftArray = (frameSize: number) =>
+  pipe([1, 0, -1, 0, -1, 0, 1, 0, -1, 0, 1, 0], multiplyArray(frameSize));
 
-export const rgb = (r: number, b: number, g: number) =>
-  createV4(r / 255, b / 255, g / 255, 1.0);
+const turnLeftTextureCoords =
+  (frameSize: number) => (textureCoords: number[]) =>
+    addArray(turnLeftArray(frameSize))(textureCoords);
 
-export const hex = (hex: string) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? createV4(
-        parseInt(result[1], 16) / 255,
-        parseInt(result[2], 16) / 255,
-        parseInt(result[3], 16) / 255,
-        1
-      )
-    : createV4(1, 1, 1, 1);
-};
+const setDirectionForTextureCoords =
+  (frameSize: number) =>
+  (direction: vec2) =>
+  (textureCoords: number[]): number[] =>
+    equalsV2(rightV2())(direction)
+      ? textureCoords
+      : turnLeftTextureCoords(frameSize)(textureCoords);
+
+export const getTextureCoordsForFrame =
+  (numberOfCols: number) =>
+  (direction: vec2) =>
+  (frameIndex: number): Float32Array => {
+    const frameSize = reciprocal(numberOfCols);
+
+    const xIndex = frameIndex % numberOfCols;
+    const nextXIndex = xIndex + 1;
+    const yIndex = Math.floor(frameIndex / numberOfCols);
+    const nextYIndex = yIndex + 1;
+
+    const frameLeft = frameSize * xIndex;
+    const frameRight = frameSize * nextXIndex;
+    const frameTop = inverse(frameSize * yIndex);
+    const frameBottom = inverse(frameSize * nextYIndex);
+    const frameLeftTop = [frameLeft, frameTop];
+    const frameRightTop = [frameRight, frameTop];
+    const frameRightBottom = [frameRight, frameBottom];
+    const frameLeftBottom = [frameLeft, frameBottom];
+
+    const textureCoords = [
+      ...frameLeftTop,
+      ...frameRightTop,
+      ...frameRightBottom,
+      ...frameLeftTop,
+      ...frameRightBottom,
+      ...frameLeftBottom,
+    ];
+
+    return pipe(
+      textureCoords,
+      pipe(direction, setDirectionForTextureCoords(frameSize)),
+      toFloat32Array
+    );
+  };
+
+// Keyboard
+
+let keysDown: KeyboardStateMap = {};
+
+export const isKeyDown = (key: string): boolean => !!keysDown[key];
+
+export const setIsKeyDown =
+  (isDown: boolean) =>
+  (key: string): void => {
+    keysDown = { ...keysDown, [key]: isDown };
+  };
+
+addKeydownEventListener((event) => pipe(event.key, setIsKeyDown(true)));
+
+addKeyupEventListener((event) => pipe(event.key, setIsKeyDown(false)));
