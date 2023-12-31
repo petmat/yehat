@@ -1,13 +1,10 @@
 import { identity, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
-import * as TE from "fp-ts/lib/TaskEither";
 
 import {
-  YehatScene2DCreated,
-  hex,
-  initializeDefaultScene2D,
-  loadGame,
-  processGameTick,
+  YehatScene2D,
+  createYehat2DScene,
+  startGame,
 } from "@yehat/yehat/src/v2/core";
 import { createText } from "@yehat/yehat/src/v2/shapes";
 import {
@@ -32,26 +29,26 @@ const createMarioFontText =
       A.map(movePosition(gl)(deltaX, deltaY))
     );
 
-const createScene = (gl: WebGLRenderingContext): YehatScene2DCreated => ({
-  isInitialized: false as const,
-  clearColor: hex("#63AE00"),
-  gameData: {},
-  textures: pipe(
-    emptyTextures(),
-    addTexture(Textures.MarioFont, "assets/textures/mario_font_square.png")
-  ),
-  gameObjects: [
-    ...createMarioFontText(gl)(32)(148, 288)("Guns n Roses"),
-    ...createMarioFontText(gl)(16)(160, 212)("Welcome to the Jungle"),
-  ],
-});
+const createScene = (gl: WebGLRenderingContext): YehatScene2D<{}> =>
+  createYehat2DScene(gl)({
+    gameData: {},
+    textures: pipe(
+      emptyTextures(),
+      addTexture(Textures.MarioFont, "assets/textures/mario_font_square.png")
+    ),
+    gameObjects: [
+      ...createMarioFontText(gl)(32)(148, 288)("Guns n Roses"),
+      ...createMarioFontText(gl)(16)(160, 212)("Welcome to the Jungle"),
+    ],
+  });
 
-const startup = (gl: WebGLRenderingContext) =>
-  pipe(
-    gl,
-    createScene,
-    initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(identity))
-  );
+const updateScene = (_gl: WebGLRenderingContext) => identity<YehatScene2D<{}>>;
 
-pipe(startup, loadGame(window)("#glcanvas"));
+const initOptions = {
+  window,
+  canvasId: "#glcanvas",
+  createScene,
+  updateScene,
+};
+
+pipe(initOptions, startGame);

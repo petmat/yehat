@@ -1,135 +1,90 @@
-import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
+import { Lens } from "monocle-ts";
 
 import {
-  GameData,
-  GameObject2DInitialized,
-  YehatScene2DCreated,
-  YehatScene2DInitialized,
-  bindBuffers,
-  initializeDefaultScene2D,
-  loadGame,
-  processGameTick,
-  rgb,
+  YehatScene2D,
+  createYehat2DScene,
+  startGame,
 } from "@yehat/yehat/src/v2/core";
+import { createSprite } from "@yehat/yehat/src/v2/shapes";
 import {
+  addAnimation,
   addTexture,
-  createSprite,
+  currentFrame,
+  defaultFrame,
   emptyTextures,
+  getTextureCoordsForFrame,
+  setCurrentAnimation,
   setPosition,
   setSize,
   setTexture,
   setTextureCoords,
-} from "@yehat/yehat/src/v2/shapes";
-import { assoc } from "@yehat/yehat/src/v2/utils";
+  setTextureFrameGridWidth,
+  updateAnimations,
+} from "@yehat/yehat/src/v2/gameObject";
+import { rgb } from "@yehat/yehat/src/v2/colors";
+import { rightV2 } from "@yehat/yehat/src/v2/math";
 
 enum Textures {
   Mario,
 }
 
-interface SpriteAnimationGameData extends GameData {
-  previousTime: number;
-  currentTime: number;
-  marioFrameIndex: number;
+enum Animations {
+  MarioRun,
 }
 
-type SpriteAnimationScene = YehatScene2DInitialized<SpriteAnimationGameData>;
+type SpriteAnimationScene = YehatScene2D<{}>;
 
-const gridSizeToCoord = (gridSize: number) => 1 / gridSize;
+const marioSpriteFrameGridWidth = 4;
+const marioDefaultFrame = 2;
 
-const getTextureCoordsForFrame = (gridSize: number) => (frameIndex: number) => {
-  const step = gridSizeToCoord(gridSize);
-  const xIndex = frameIndex % gridSize;
-  const yIndex = Math.floor(frameIndex / gridSize);
+const getMarioTextureCoordsForFrame = pipe(
+  rightV2(),
+  getTextureCoordsForFrame(marioSpriteFrameGridWidth)
+);
 
-  return new Float32Array([
-    step * xIndex,
-    1 - step * yIndex,
-    step * (xIndex + 1),
-    1 - step * yIndex,
-    step * (xIndex + 1),
-    1 - step * (yIndex + 1),
-    step * xIndex,
-    1 - step * yIndex,
-    step * (xIndex + 1),
-    1 - step * (yIndex + 1),
-    step * xIndex,
-    1 - step * (yIndex + 1),
-  ]);
-};
-
-const createCharacter =
-  (gl: WebGLRenderingContext) =>
-  (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createSprite(gl)(),
-      setSize(gl)(128, 128),
-      setPosition(gl)(x, y),
-      setTexture(texture),
-      setTextureCoords(getTextureCoordsForFrame(4)(2))
-    );
-
-const createGameObjects = (gl: WebGLRenderingContext) => {
-  return [createCharacter(gl)(Textures.Mario)(400, 300)];
-};
-
-const createScene = (
-  gl: WebGLRenderingContext
-): YehatScene2DCreated<SpriteAnimationGameData> => ({
-  isInitialized: false as const,
-  clearColor: rgb(127, 149, 255),
-  gameData: { currentTime: 0, previousTime: 0, marioFrameIndex: 2 },
-  textures: pipe(
-    emptyTextures(),
-    addTexture(Textures.Mario, "assets/textures/mario_sprite.png")
-  ),
-  gameObjects: createGameObjects(gl),
-});
-
-const updateScene = (scene: SpriteAnimationScene): SpriteAnimationScene => {
-  const { gameData, gameObjects } = scene;
-
-  const { previousTime, currentTime, marioFrameIndex } = gameData;
-
-  const [mario] = gameObjects;
-
-  const shouldAnimate = currentTime - previousTime > 500;
-
-  const newMarioFrameIndex = shouldAnimate
-    ? marioFrameIndex < 4
-      ? marioFrameIndex + 1
-      : 2
-    : marioFrameIndex;
-
-  const newMario = pipe(
-    mario,
-    setTextureCoords(getTextureCoordsForFrame(4)(newMarioFrameIndex))
-  ) as GameObject2DInitialized;
-
-  bindBuffers(scene.context.webGLRenderingContext)(newMario);
-
-  return {
-    ...scene,
-    gameData: pipe(
-      gameData,
-      assoc<SpriteAnimationGameData, "marioFrameIndex">("marioFrameIndex")(
-        newMarioFrameIndex
-      ),
-      assoc<SpriteAnimationGameData, "previousTime">("previousTime")(
-        shouldAnimate ? currentTime : previousTime
-      )
-    ),
-    gameObjects: [newMario],
-  };
-};
-
-const startup = (gl: WebGLRenderingContext) =>
+const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
   pipe(
-    gl,
-    createScene,
-    initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(updateScene))
+    createSprite(gl)(),
+    setSize(gl)(128, 128),
+    setPosition(gl)(x, y),
+    setTexture(Textures.Mario),
+    setTextureFrameGridWidth(marioSpriteFrameGridWidth),
+    currentFrame.set(marioDefaultFrame),
+    defaultFrame.set(marioDefaultFrame),
+    setTextureCoords(getMarioTextureCoordsForFrame(marioDefaultFrame)),
+    addAnimation(Animations.MarioRun, [2, 3, 4]),
+    setCurrentAnimation(Animations.MarioRun)
   );
 
-pipe(startup, loadGame(window)("#glcanvas"));
+const createScene = (gl: WebGLRenderingContext): SpriteAnimationScene =>
+  createYehat2DScene(gl)({
+    clearColor: rgb(127, 149, 255),
+    gameData: {},
+    textures: pipe(
+      emptyTextures(),
+      addTexture(Textures.Mario, "assets/textures/mario_sprite.png")
+    ),
+    gameObjects: [createMario(gl)(400, 300)],
+  });
+
+const gameObjectsLens = Lens.fromProp<SpriteAnimationScene>()("gameObjects");
+
+const updateScene =
+  (gl: WebGLRenderingContext) =>
+  (scene: SpriteAnimationScene): SpriteAnimationScene =>
+    pipe(
+      scene,
+      gameObjectsLens.modify(
+        updateAnimations(gl)(scene.currentTime, scene.animationInterval)
+      )
+    );
+
+const initOptions = {
+  window,
+  canvasId: "#glcanvas",
+  createScene,
+  updateScene,
+};
+
+pipe(initOptions, startGame);

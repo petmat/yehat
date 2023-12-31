@@ -1,0 +1,20 @@
+{
+  "name": "@yehat/example-shapes",
+  "version": "1.0.0",
+  "description": "Yehat Shapes example",
+  "main": "index.js",
+  "author": "Matti Petrelius",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn parcel src/index.html src/assets/**/*"
+  },
+  "devDependencies": {
+    "@yehat/yehat": "0.0.1",
+    "parcel": "2.9.2"
+  },
+  "dependencies": {
+    "fp-ts": "^2.14.0",
+    "gl-matrix": "^3.4.3",
+    "monocle-ts": "^2.3.13"
+  }
+}

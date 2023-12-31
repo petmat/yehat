@@ -8,17 +8,18 @@ import { vec2 } from "gl-matrix";
 import {
   GameData,
   YehatScene2D,
+  addKeyListeners,
   bindBuffers,
   getTextureCoordsForFrame,
   initializeDefaultScene2D,
   isKeyDown,
-  loadGame,
+  runGame,
   processGameTick,
   setIsKeyDown,
 } from "@yehat/yehat/src/v2/core";
 import { rgb } from "@yehat/yehat/src/v2/colors";
 import {
-  createRectangle,
+  createDefaultRectangle,
   createSprite,
   createText,
 } from "@yehat/yehat/src/v2/shapes";
@@ -81,7 +82,7 @@ const createTile =
   (texture: Textures) =>
   (x: number, y: number) =>
     pipe(
-      createRectangle(gl)(),
+      createDefaultRectangle(gl)(),
       setSize(gl)(width, height),
       setPosition(gl)(x, y),
       setTexture(texture)
@@ -444,7 +445,6 @@ const updateScene =
       newMario.currentAnimation._tag === "Some" &&
       scene.currentTime - newMario.lastFrameChange >= scene.animationInterval
     ) {
-      console.log("animate!");
       newMario = pipe(
         newMario,
         pipe(
@@ -514,4 +514,6 @@ const startup = (gl: WebGLRenderingContext) =>
     TE.chain(pipe(updateScene, processGameTick(gl)))
   );
 
-pipe(startup, loadGame(window)("#glcanvas"));
+pipe(startup, runGame(window)("#glcanvas"));
+
+addKeyListeners(window);

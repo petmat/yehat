@@ -1,13 +1,10 @@
 import * as A from "fp-ts/lib/Array";
-import * as O from "fp-ts/lib/Option";
-import * as TE from "fp-ts/lib/TaskEither";
 import { identity, pipe } from "fp-ts/lib/function";
 
 import {
   YehatScene2D,
-  initializeDefaultScene2D,
-  loadGame,
-  processGameTick,
+  createYehat2DScene,
+  startGame,
 } from "@yehat/yehat/src/v2/core";
 import {
   addTexture,
@@ -46,28 +43,20 @@ enum Textures {
 }
 
 const createTile =
-  (width: number, height: number) =>
+  (size: [width: number, height: number]) =>
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createRectangle(gl)(),
-      setSize(gl)(width, height),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, size), setTexture(texture));
 
-const createLargeWideTile = createTile(128, 64);
-
-const createLargeTile = createTile(64, 64);
-
-const createSmallTile = createTile(32, 32);
-
-const createFloorTile = createTile(640, 32);
+const createLargeWideTile = createTile([128, 64]);
+const createLargeTile = createTile([64, 64]);
+const createSmallTile = createTile([32, 32]);
+const createFloorTile = createTile([640, 32]);
 
 const createFloor = (gl: WebGLRenderingContext) => () =>
   pipe(
-    createFloorTile(gl)(Textures.FloorTile)(320, 6),
+    createFloorTile(gl)(Textures.FloorTile)([320, 6]),
     setTextureCoords(new Float32Array([0, 1, 16, 1, 16, 0, 0, 1, 16, 0, 0, 0]))
   );
 
@@ -127,20 +116,20 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 
   return [
     // background
-    createLargeWideTile(Textures.Bush)(54, 54),
-    createLargeWideTile(Textures.Hill)(166, 54),
-    createLargeTile(Textures.BushSmall)(420, 54),
+    createLargeWideTile(Textures.Bush)([54, 54]),
+    createLargeWideTile(Textures.Hill)([166, 54]),
+    createLargeTile(Textures.BushSmall)([420, 54]),
     // floor
     createFloor(),
     // platform tiles
-    createTile(Textures.Tile25)(112, 118),
-    createTile(Textures.Bricks)(230, 118),
-    createTile(Textures.Iron)(262, 118),
-    createTile(Textures.Bricks)(294, 118),
-    createTile(Textures.Tile25)(326, 118),
-    createTile(Textures.Bricks)(358, 118),
-    createTile(Textures.Tile25)(294, 202),
-    createLargeTile(Textures.Pipe)(564, 54),
+    createTile(Textures.Tile25)([112, 118]),
+    createTile(Textures.Bricks)([230, 118]),
+    createTile(Textures.Iron)([262, 118]),
+    createTile(Textures.Bricks)([294, 118]),
+    createTile(Textures.Tile25)([326, 118]),
+    createTile(Textures.Bricks)([358, 118]),
+    createTile(Textures.Tile25)([294, 202]),
+    createLargeTile(Textures.Pipe)([564, 54]),
     // monsters
     createCharacter(Textures.DickHead)(98, 36),
     // mario
@@ -148,8 +137,8 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
     // power-ups
     createCharacter(Textures.Mushroom)(314, 148),
     // sky
-    createLargeTile(Textures.CloudSmall)(94, 252),
-    createLargeWideTile(Textures.Cloud)(554, 238),
+    createLargeTile(Textures.CloudSmall)([94, 252]),
+    createLargeWideTile(Textures.Cloud)([554, 238]),
     // game info text
     ...createMarioText(16)(100, 356)("MARIO"),
     ...createMarioText(16)(330, 356)("WORLD"),
@@ -163,43 +152,40 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
   ];
 };
 
-const createScene = (gl: WebGLRenderingContext): YehatScene2D => ({
-  isInitialized: false as const,
-  clearColor: rgb(127, 149, 255),
-  currentTime: 0,
-  previousTime: 0,
-  keysHandled: {},
-  animationInterval: 1000 / 12,
-  gameData: {},
-  textures: pipe(
-    emptyTextures(),
-    addTexture(Textures.Bush, "assets/textures/bush.png"),
-    addTexture(Textures.BushSmall, "assets/textures/bush_small.png"),
-    addTexture(Textures.Hill, "assets/textures/hill.png"),
-    addTexture(Textures.FloorTile, "assets/textures/floor_tile.png"),
-    addTexture(Textures.Bricks, "assets/textures/bricks_tile.png"),
-    addTexture(Textures.Iron, "assets/textures/iron_tile.png"),
-    addTexture(Textures.Tile25, "assets/textures/25_tile.png"),
-    addTexture(Textures.Pipe, "assets/textures/pipe.png"),
-    addTexture(Textures.Cloud, "assets/textures/cloud.png"),
-    addTexture(Textures.CloudSmall, "assets/textures/cloud_small.png"),
-    addTexture(Textures.DickHead, "assets/textures/dick_head.png"),
-    addTexture(Textures.Mario, "assets/textures/mario.png"),
-    addTexture(Textures.Mushroom, "assets/textures/mushroom.png"),
-    addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png"),
-    addTexture(Textures.X, "assets/textures/x.png"),
-    addTexture(Textures.Coin, "assets/textures/coin.png")
-  ),
-  gameObjects: createGameObjects(gl),
-  context: O.none,
-});
+const createScene = (gl: WebGLRenderingContext): YehatScene2D<{}> =>
+  createYehat2DScene(gl)({
+    clearColor: rgb(127, 149, 255),
+    animationInterval: 1000 / 12,
+    gameData: {},
+    textures: pipe(
+      emptyTextures(),
+      addTexture(Textures.Bush, "assets/textures/bush.png"),
+      addTexture(Textures.BushSmall, "assets/textures/bush_small.png"),
+      addTexture(Textures.Hill, "assets/textures/hill.png"),
+      addTexture(Textures.FloorTile, "assets/textures/floor_tile.png"),
+      addTexture(Textures.Bricks, "assets/textures/bricks_tile.png"),
+      addTexture(Textures.Iron, "assets/textures/iron_tile.png"),
+      addTexture(Textures.Tile25, "assets/textures/25_tile.png"),
+      addTexture(Textures.Pipe, "assets/textures/pipe.png"),
+      addTexture(Textures.Cloud, "assets/textures/cloud.png"),
+      addTexture(Textures.CloudSmall, "assets/textures/cloud_small.png"),
+      addTexture(Textures.DickHead, "assets/textures/dick_head.png"),
+      addTexture(Textures.Mario, "assets/textures/mario.png"),
+      addTexture(Textures.Mushroom, "assets/textures/mushroom.png"),
+      addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png"),
+      addTexture(Textures.X, "assets/textures/x.png"),
+      addTexture(Textures.Coin, "assets/textures/coin.png")
+    ),
+    gameObjects: createGameObjects(gl),
+  });
 
-const startup = (gl: WebGLRenderingContext) =>
-  pipe(
-    gl,
-    createScene,
-    initializeDefaultScene2D(gl),
-    TE.chain(processGameTick(identity))
-  );
+const updateScene = (_gl: WebGLRenderingContext) => identity<YehatScene2D<{}>>;
 
-pipe(startup, loadGame(window)("#glcanvas"));
+const initOptions = {
+  window,
+  canvasId: "#glcanvas",
+  createScene,
+  updateScene,
+};
+
+pipe(initOptions, startGame);
