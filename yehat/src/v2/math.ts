@@ -28,10 +28,7 @@ export const zeroV2 = () => {
   return v;
 };
 
-export const rightV2 = () => {
-  const v = vec2.fromValues(1, 0);
-  return v;
-};
+export const rightV2 = () => vec2.fromValues(1, 0);
 
 export const addV2 =
   (b: vec2) =>

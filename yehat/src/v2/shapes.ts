@@ -6,11 +6,13 @@ import {
   DrawMode,
   GameObject2D,
   createDefaultGameObject,
-  setDrawMode,
+  drawMode,
+  setPosition,
+  setSize,
   setTexture,
   setTextureCoords,
-  setTranslation,
-  setVertices,
+  translation,
+  vertices,
 } from "./gameObject";
 import { createV2 } from "./math";
 
@@ -25,12 +27,15 @@ export const createRectangleTextureCoords = () =>
   new Float32Array([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0]);
 
 export const createRectangle =
-  (gl: WebGLRenderingContext) => (): GameObject2D =>
+  (gl: WebGLRenderingContext) =>
+  (position: [x: number, y: number], size: [width: number, height: number]) =>
     pipe(
       createDefaultGameObject(gl)(),
-      pipe(createRectangleShape(), setVertices),
-      pipe(getRectangleDrawMode(), setDrawMode),
-      pipe(createRectangleTextureCoords(), setTextureCoords)
+      pipe(createRectangleShape(), vertices.set),
+      pipe(getRectangleDrawMode(), drawMode.set),
+      pipe(createRectangleTextureCoords(), setTextureCoords),
+      setPosition(gl)(...position),
+      setSize(gl)(...size)
     );
 
 // Triangle
@@ -43,13 +48,17 @@ export const getTriangleDrawMode = () => DrawMode.Triangles;
 export const createTriangleTextureCoords = () =>
   new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]);
 
-export const createTriangle = (gl: WebGLRenderingContext) => (): GameObject2D =>
-  pipe(
-    createDefaultGameObject(gl)(),
-    pipe(createTriangleShape(), setVertices),
-    pipe(getTriangleDrawMode(), setDrawMode),
-    pipe(createTriangleTextureCoords(), setTextureCoords)
-  );
+export const createTriangle =
+  (gl: WebGLRenderingContext) =>
+  (position: [x: number, y: number], size: [width: number, height: number]) =>
+    pipe(
+      createDefaultGameObject(gl)(),
+      pipe(createTriangleShape(), vertices.set),
+      pipe(getTriangleDrawMode(), drawMode.set),
+      pipe(createTriangleTextureCoords(), setTextureCoords),
+      setPosition(gl)(...position),
+      setSize(gl)(...size)
+    );
 
 // Circle
 
@@ -79,13 +88,17 @@ export const createCircleTextureCoords = () =>
     ].flat()
   );
 
-export const createCircle = (gl: WebGLRenderingContext) => (): GameObject2D =>
-  pipe(
-    createDefaultGameObject(gl)(),
-    pipe(createCircleShape(), setVertices),
-    pipe(getCircleDrawMode(), setDrawMode),
-    pipe(createCircleTextureCoords(), setTextureCoords)
-  );
+export const createCircle =
+  (gl: WebGLRenderingContext) =>
+  (position: [x: number, y: number], size: [width: number, height: number]) =>
+    pipe(
+      createDefaultGameObject(gl)(),
+      pipe(createCircleShape(), vertices.set),
+      pipe(getCircleDrawMode(), drawMode.set),
+      pipe(createCircleTextureCoords(), setTextureCoords),
+      setPosition(gl)(...position),
+      setSize(gl)(...size)
+    );
 
 // Text
 
@@ -128,9 +141,9 @@ export const createText =
     Array.from(text).map((char, index) =>
       pipe(
         createDefaultGameObject(gl)(),
-        pipe(createRectangleShape(), setVertices),
-        pipe(createV2(-1 + index, -1), setTranslation),
-        pipe(getRectangleDrawMode(), setDrawMode),
+        pipe(createRectangleShape(), vertices.set),
+        pipe(createV2(-1 + index, -1), translation.set),
+        pipe(getRectangleDrawMode(), drawMode.set),
         pipe(texture, setTexture),
         pipe(char, pipe(16 / 128, calculateTextTextureCoord), setTextureCoords)
       )
@@ -141,7 +154,7 @@ export const createText =
 export const createSprite = (gl: WebGLRenderingContext) => (): GameObject2D =>
   pipe(
     createDefaultGameObject(gl)(),
-    pipe(createRectangleShape(), setVertices),
-    pipe(getRectangleDrawMode(), setDrawMode),
+    pipe(createRectangleShape(), vertices.set),
+    pipe(getRectangleDrawMode(), drawMode.set),
     pipe(createRectangleTextureCoords(), setTextureCoords)
   );

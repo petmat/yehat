@@ -1016,6 +1016,11 @@ fill-range@^7.0.1:
   dependencies:
     to-regex-range "^5.0.1"
 
+fp-ts@2.16, fp-ts@^2.16.1:
+  version "2.16.1"
+  resolved "https://registry.yarnpkg.com/fp-ts/-/fp-ts-2.16.1.tgz#6abc401ce42b65364ca8f0b0d995c5840c68a930"
+  integrity sha512-by7U5W8dkIzcvDofUcO42yl9JbnHTEDBrzu3pt5fKT+Z4Oy85I21K80EYJYdjQGC2qum4Vo55Ag57iiIK4FYuA==
+
 fp-ts@^2.13.1:
   version "2.13.1"
   resolved "https://registry.yarnpkg.com/fp-ts/-/fp-ts-2.13.1.tgz#1bf2b24136cca154846af16752dc29e8fa506f2a"
@@ -1230,6 +1235,11 @@ minimist@^1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"
   integrity sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==
+
+monocle-ts@^2.3.13:
+  version "2.3.13"
+  resolved "https://registry.yarnpkg.com/monocle-ts/-/monocle-ts-2.3.13.tgz#7c8af489613cd5175df2ea3c02c57c6151995e5d"
+  integrity sha512-D5Ygd3oulEoAm3KuGO0eeJIrhFf1jlQIoEVV2DYsZUMz42j4tGxgct97Aq68+F8w4w4geEnwFa8HayTS/7lpKQ==
 
 msgpackr-extract@^1.0.14:
   version "1.0.16"

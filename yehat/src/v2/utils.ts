@@ -4,6 +4,8 @@ import { Either } from "fp-ts/lib/Either";
 import { pipe } from "fp-ts/lib/function";
 import { vec2 } from "gl-matrix";
 
+export const numberToString = (n: number) => n.toString();
+
 export const tap =
   <A>(f: (a: A) => void) =>
   (a: A): A => {
@@ -56,6 +58,7 @@ export const getLogOnce = () => {
   };
 };
 
+// TODO: replace assoc with monocle-ts
 export const assoc =
   <T extends { [Property in K]: T[K] }, K extends keyof T>(key: K) =>
   (val: T[K]) =>
@@ -67,3 +70,7 @@ export const append =
     [...arr, val];
 
 export const v2ToString = (v: vec2) => `[${v[0]}, ${1}]`;
+
+export const toFloat32Array = (arr: number[]) => new Float32Array(arr);
+
+export const wrap = (max: number) => (v: number) => v > max ? 0 : v;

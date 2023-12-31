@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "fp-ts": "^2.13.1",
-    "gl-matrix": "^3.4.3"
+    "gl-matrix": "^3.4.3",
+    "monocle-ts": "^2.3.13"
   }
 }

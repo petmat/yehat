@@ -9,11 +9,12 @@
     "start": "yarn parcel src/index.html src/assets/**/*"
   },
   "devDependencies": {
-    "parcel": "2.9.2",
-    "@yehat/yehat": "0.0.1"
+    "@yehat/yehat": "0.0.1",
+    "parcel": "2.9.2"
   },
   "dependencies": {
-    "fp-ts": "^2.14.0",
-    "gl-matrix": "^3.4.3"
+    "fp-ts": "2.16",
+    "gl-matrix": "^3.4.3",
+    "monocle-ts": "^2.3.13"
   }
 }

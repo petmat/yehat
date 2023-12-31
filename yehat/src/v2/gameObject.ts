@@ -1,18 +1,28 @@
-import { flow, pipe } from "fp-ts/lib/function";
+import { constant, flow, pipe } from "fp-ts/lib/function";
+import * as A from "fp-ts/lib/Array";
+import * as E from "fp-ts/lib/Either";
+import { Either } from "fp-ts/lib/Either";
 import * as O from "fp-ts/lib/Option";
 import { Option } from "fp-ts/lib/Option";
 import { upsertAt } from "fp-ts/lib/Record";
 import { vec2, vec4 } from "gl-matrix";
+import { Lens, fromTraversable } from "monocle-ts";
 
 import {
+  addArray,
   addV2,
   createV2,
   createV4,
   divideV2,
+  equalsV2,
+  inverse,
+  multiplyArray,
   multiplyV2,
+  reciprocal,
   rightV2,
   zeroV2,
 } from "./math";
+import { numberToString, tap, toFloat32Array, wrap } from "./utils";
 
 export enum DrawMode {
   Points,
@@ -46,47 +56,64 @@ export interface GameObject2D {
 export interface Texture {
   url: string;
 }
-export const assocGameObj =
-  <T extends GameObject2D, K extends keyof T>(key: K) =>
-  (val: T[K]) =>
-  (obj: T): T => ({ ...obj, [key]: val });
 
-export const setVertices =
-  (vertices: Float32Array) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(gameObj, pipe(vertices, assocGameObj("vertices")));
+export const vertices = Lens.fromProp<GameObject2D>()("vertices");
 
-export const setScale = assocGameObj("scale");
+export const translation = Lens.fromProp<GameObject2D>()("translation");
+
+export const previousTranslation = Lens.fromProp<GameObject2D>()(
+  "previousTranslation"
+);
+
+export const velocity = Lens.fromProp<GameObject2D>()("velocity");
+
+export const scale = Lens.fromProp<GameObject2D>()("scale");
+
+export const rotation = Lens.fromProp<GameObject2D>()("rotation");
+
+export const color = Lens.fromProp<GameObject2D>()("color");
+
+export const drawMode = Lens.fromProp<GameObject2D>()("drawMode");
+
+export const texture = Lens.fromProp<GameObject2D>()("texture");
+
+export const textureCoords = Lens.fromProp<GameObject2D>()("textureCoords");
+
+export const textureFrameGridWidth = Lens.fromProp<GameObject2D>()(
+  "textureFrameGridWidth"
+);
+
+export const defaultFrame = Lens.fromProp<GameObject2D>()("defaultFrame");
+
+export const animations = Lens.fromProp<GameObject2D>()("animations");
+
+export const currentAnimation =
+  Lens.fromProp<GameObject2D>()("currentAnimation");
+
+export const lastFrameChange = Lens.fromProp<GameObject2D>()("lastFrameChange");
+
+export const direction = Lens.fromProp<GameObject2D>()("direction");
+
+export const currentFrame = Lens.fromProp<GameObject2D>()("currentFrame");
+
+export const tag = Lens.fromProp<GameObject2D>()("tag");
+
+export const setTexture = (val: number) => texture.set(O.some(val));
+
+export const setCurrentAnimation = (val: number) =>
+  currentAnimation.set(O.some(val));
+
+export const clearCurrentAnimation = () => currentAnimation.set(O.none);
+
+export const setTag = (val: string) => tag.set(O.some(val));
+
+export const setTextureFrameGridWidth = (val: number) =>
+  textureFrameGridWidth.set(O.some(val));
 
 export const translate =
   (delta: vec2) =>
-  <T extends GameObject2D>(gameObject: T): T =>
-    pipe(gameObject, setTranslation(addV2(delta)(gameObject.translation)));
-
-export const setTranslation =
-  <T extends GameObject2D>(val: T["translation"]) =>
-  (gameObject: T): T =>
-    pipe(
-      gameObject,
-      pipe(gameObject.translation, assocGameObj("previousTranslation")),
-      pipe(val, assocGameObj("translation"))
-    );
-
-export const setVelocity =
-  (velocity: vec2) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(gameObj, pipe(velocity, assocGameObj("velocity")));
-
-export const setColor = assocGameObj("color");
-
-export const setDrawMode = assocGameObj("drawMode");
-
-export const setRotation = assocGameObj("rotation");
-
-export const setTexture = (texture: number) =>
-  assocGameObj("texture")(O.some(texture));
-
-export const setTag = (tag: string) => assocGameObj("tag")(O.some(tag));
+  (gameObject: GameObject2D): GameObject2D =>
+    pipe(gameObject, translation.modify(addV2(delta)));
 
 const calculateGroupScaleOffsetStep = (
   value: number,
@@ -117,51 +144,73 @@ export const addTexture =
 
 export const setTextureCoords =
   (val: Float32Array) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(gameObj, pipe(val, assocGameObj("textureCoords")));
-
-export const setTextureFrameGridWidth =
-  (gridWidth: number) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(
-      gameObj,
-      pipe(gridWidth, O.some, assocGameObj("textureFrameGridWidth"))
-    );
-
-export const setDefaultFrame = assocGameObj("defaultFrame");
-
-export const numberToString = (n: number) => n.toString();
+  (gameObj: GameObject2D): GameObject2D =>
+    pipe(gameObj, pipe(val, textureCoords.set));
 
 export const addAnimation =
   (key: number, animation: number[]) =>
-  <T extends GameObject2D>(gameObj: T): T =>
+  (gameObj: GameObject2D): GameObject2D =>
     pipe(
       gameObj,
       pipe(
         pipe(
-          gameObj.animations,
+          animations.get(gameObj),
           upsertAt(pipe(key, numberToString), animation)
         ),
-        assocGameObj("animations")
+        animations.set
       )
     );
 
-export const setCurrentAnimation =
-  (animation: number) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(gameObj, pipe(animation, O.some, assocGameObj("currentAnimation")));
+const turnLeftArray = (frameSize: number) =>
+  pipe([1, 0, -1, 0, -1, 0, 1, 0, -1, 0, 1, 0], multiplyArray(frameSize));
 
-export const clearCurrentAnimation = <T extends GameObject2D>(gameObj: T): T =>
-  pipe(gameObj, pipe(O.none, assocGameObj("currentAnimation")));
+const turnLeftTextureCoords =
+  (frameSize: number) => (textureCoords: number[]) =>
+    addArray(turnLeftArray(frameSize))(textureCoords);
 
-export const setDirection =
+const setDirectionForTextureCoords =
+  (frameSize: number) =>
   (direction: vec2) =>
-  <T extends GameObject2D>(gameObj: T): T =>
-    pipe(gameObj, pipe(direction, assocGameObj("direction")));
+  (textureCoords: number[]): number[] =>
+    equalsV2(rightV2())(direction)
+      ? textureCoords
+      : turnLeftTextureCoords(frameSize)(textureCoords);
 
-export const setCurrentFrame = assocGameObj("currentFrame");
+export const getTextureCoordsForFrame =
+  (numberOfCols: number) =>
+  (direction: vec2) =>
+  (frameIndex: number): Float32Array => {
+    const frameSize = reciprocal(numberOfCols);
 
-export const setLastFrameChange = assocGameObj("lastFrameChange");
+    const xIndex = frameIndex % numberOfCols;
+    const nextXIndex = xIndex + 1;
+    const yIndex = Math.floor(frameIndex / numberOfCols);
+    const nextYIndex = yIndex + 1;
+
+    const frameLeft = frameSize * xIndex;
+    const frameRight = frameSize * nextXIndex;
+    const frameTop = inverse(frameSize * yIndex);
+    const frameBottom = inverse(frameSize * nextYIndex);
+    const frameLeftTop = [frameLeft, frameTop];
+    const frameRightTop = [frameRight, frameTop];
+    const frameRightBottom = [frameRight, frameBottom];
+    const frameLeftBottom = [frameLeft, frameBottom];
+
+    const textureCoords = [
+      ...frameLeftTop,
+      ...frameRightTop,
+      ...frameRightBottom,
+      ...frameLeftTop,
+      ...frameRightBottom,
+      ...frameLeftBottom,
+    ];
+
+    return pipe(
+      textureCoords,
+      pipe(direction, setDirectionForTextureCoords(frameSize)),
+      toFloat32Array
+    );
+  };
 
 // Aspect ratio dependent functions
 
@@ -214,16 +263,16 @@ export const createDefaultGameObject =
 
 export const setSize =
   (gl: WebGLRenderingContext) => (width: number, height: number) =>
-    pipe(createV2(width, height), pxToWebGLScale(gl), assocGameObj("scale"));
+    pipe(createV2(width, height), pxToWebGLScale(gl), scale.set);
 
 export const setPosition =
   (gl: WebGLRenderingContext) => (x: number, y: number) =>
-    pipe(createV2(x, y), pxToWebGLCoords(gl), setTranslation);
+    pipe(createV2(x, y), pxToWebGLCoords(gl), translation.set);
 
 export const movePosition =
   (gl: WebGLRenderingContext) =>
   (deltaX: number, deltaY: number) =>
-  <T extends GameObject2D>(gameObject: T): T =>
+  (gameObject: GameObject2D): GameObject2D =>
     pipe(createV2(deltaX, deltaY), pxToWebGLDelta(gl), translate)(gameObject);
 
 export const setGroupSize =
@@ -255,3 +304,108 @@ export const getAspectRatioCoreFns = (gl: WebGLRenderingContext) => ({
   movePosition: movePosition(gl),
   setGroupSize: setGroupSize(gl),
 });
+
+// Buffers
+
+export const createBuffers =
+  (gl: WebGLRenderingContext) =>
+  (gameObject: GameObject2D): Either<string, GameObject2D> =>
+    pipe(
+      gameObject,
+      (go) => {
+        return pipe(
+          gl.createBuffer(),
+          E.fromNullable("Cannot create buffer"),
+          E.map((buffer) => [go, buffer] as const)
+        );
+      },
+      E.chain((goAndBuffer) => {
+        const [go, firstBuffer] = goAndBuffer;
+        return pipe(
+          gl.createBuffer(),
+          E.fromNullable("Cannot create buffer"),
+          E.map((buffer) => [go, firstBuffer, buffer] as const)
+        );
+      }),
+      E.map((result) => {
+        const [go, firstBuffer, secondBuffer] = result;
+        return {
+          ...go,
+          vertexBuffer: O.some(firstBuffer),
+          textureCoordBuffer: O.some(secondBuffer),
+          initialized: true as const,
+        };
+      })
+    );
+
+const bindArrayBuffer =
+  (gl: WebGLRenderingContext) =>
+  (arr: Float32Array) =>
+  (buffer: WebGLBuffer): void => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+  };
+
+export const bindBuffers =
+  (gl: WebGLRenderingContext) =>
+  (gameObject: GameObject2D): Either<string, GameObject2D> => {
+    return pipe(
+      gameObject.vertexBuffer,
+      E.fromOption(() => "Vertex buffer is not set"),
+      E.map(tap(pipe(gameObject.vertices, bindArrayBuffer(gl)))),
+      E.map(() => gameObject.textureCoordBuffer),
+      E.chain(E.fromOption(() => "Texture coordinate buffer is not set")),
+      E.map(tap(pipe(gameObject.textureCoords, bindArrayBuffer(gl)))),
+      E.map(() => gameObject)
+    );
+  };
+
+// Animations
+const nextFrame = (animation: number[] | undefined) => (frame: number) =>
+  animation
+    ? animation[wrap(animation.length - 1)(animation.indexOf(frame) + 1)]
+    : frame;
+
+const gameObjectTraversal = fromTraversable(A.Traversable)<GameObject2D>();
+
+const applyAnimation =
+  (currentTime: number, animationInterval: number) =>
+  (gameObj: GameObject2D) =>
+  (animation: number) =>
+    currentTime - gameObj.lastFrameChange >= animationInterval
+      ? pipe(
+          gameObj,
+          currentFrame.modify(nextFrame(gameObj.animations[animation])),
+          lastFrameChange.set(currentTime),
+          pipe(
+            gameObj.currentFrame,
+            getTextureCoordsForFrame(4)(rightV2()),
+            setTextureCoords
+          )
+        )
+      : gameObj;
+
+const animateGameObject =
+  (currentTime: number, animationInterval: number) =>
+  (gameObj: GameObject2D): GameObject2D => {
+    return pipe(
+      gameObj.currentAnimation,
+      O.fold(
+        constant(gameObj),
+        applyAnimation(currentTime, animationInterval)(gameObj)
+      )
+    );
+  };
+
+export const updateAnimations =
+  (gl: WebGLRenderingContext) =>
+  (currentTime: number, animationInterval: number) =>
+  (gameObjects: GameObject2D[]): GameObject2D[] => {
+    return pipe(
+      gameObjects,
+      gameObjectTraversal.modify(
+        animateGameObject(currentTime, animationInterval)
+      ),
+      A.map(tap(bindBuffers(gl)))
+    );
+  };
