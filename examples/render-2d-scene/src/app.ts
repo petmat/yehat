@@ -16,11 +16,7 @@ import {
   setTexture,
   setTextureCoords,
 } from "@yehat/yehat/src/v2/gameObject";
-import {
-  createRectangle,
-  createSprite,
-  createText,
-} from "@yehat/yehat/src/v2/shapes";
+import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
 import { rgb } from "@yehat/yehat/src/v2/colors";
 
 enum Textures {
@@ -63,24 +59,14 @@ const createFloor = (gl: WebGLRenderingContext) => () =>
 const createCharacter =
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createSprite(gl)(),
-      setSize(gl)(32, 32),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, [32, 32]), setTexture(texture));
 
 const createSymbol =
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createSprite(gl)(),
-      setSize(gl)(16, 16),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, [16, 16]), setTexture(texture));
 
 const createMarioText =
   (gl: WebGLRenderingContext) =>
@@ -131,11 +117,11 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
     createTile(Textures.Tile25)([294, 202]),
     createLargeTile(Textures.Pipe)([564, 54]),
     // monsters
-    createCharacter(Textures.DickHead)(98, 36),
+    createCharacter(Textures.DickHead)([98, 36]),
     // mario
-    createCharacter(Textures.Mario)(286, 70),
+    createCharacter(Textures.Mario)([286, 70]),
     // power-ups
-    createCharacter(Textures.Mushroom)(314, 148),
+    createCharacter(Textures.Mushroom)([314, 148]),
     // sky
     createLargeTile(Textures.CloudSmall)([94, 252]),
     createLargeWideTile(Textures.Cloud)([554, 238]),
@@ -144,8 +130,8 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
     ...createMarioText(16)(330, 356)("WORLD"),
     ...createMarioText(16)(470, 356)("TIME"),
     ...createMarioText(16)(100, 336)("000000"),
-    createSymbol(Textures.Coin)(236, 336),
-    createSymbol(Textures.X)(252, 336),
+    createSymbol(Textures.Coin)([236, 336]),
+    createSymbol(Textures.X)([252, 336]),
     ...createMarioText(16)(270, 336)("00"),
     ...createMarioText(16)(344, 336)("1-1"),
     ...createMarioText(16)(480, 336)("913"),

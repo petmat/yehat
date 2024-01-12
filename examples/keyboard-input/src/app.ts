@@ -14,11 +14,9 @@ import {
   emptyTextures,
   movePosition,
   setGroupSize,
-  setPosition,
-  setSize,
   setTexture,
 } from "@yehat/yehat/src/v2/gameObject";
-import { createSprite, createText } from "@yehat/yehat/src/v2/shapes";
+import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
 import { rgb } from "@yehat/yehat/src/v2/colors";
 
 enum Textures {
@@ -28,13 +26,9 @@ enum Textures {
 
 type KeyboardInputScene = YehatScene2D<{}>;
 
-const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
-  pipe(
-    createSprite(gl)(),
-    setSize(gl)(32, 32),
-    setPosition(gl)(x, y),
-    setTexture(Textures.Mario)
-  );
+const createMario =
+  (gl: WebGLRenderingContext) => (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, [32, 32]), setTexture(Textures.Mario));
 
 const createMarioText =
   (gl: WebGLRenderingContext) =>
@@ -57,7 +51,7 @@ const createScene = (gl: WebGLRenderingContext): KeyboardInputScene =>
       addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png")
     ),
     gameObjects: [
-      createMario(gl)(286, 70),
+      createMario(gl)([286, 70]),
       ...createMarioText(gl)(32)(180, 340)("ARROW LEFT"),
       ...createMarioText(gl)(32)(168, 260)("ARROW RIGHT"),
     ],

@@ -148,13 +148,3 @@ export const createText =
         pipe(char, pipe(16 / 128, calculateTextTextureCoord), setTextureCoords)
       )
     );
-
-// Sprite
-
-export const createSprite = (gl: WebGLRenderingContext) => (): GameObject2D =>
-  pipe(
-    createDefaultGameObject(gl)(),
-    pipe(createRectangleShape(), vertices.set),
-    pipe(getRectangleDrawMode(), drawMode.set),
-    pipe(createRectangleTextureCoords(), setTextureCoords)
-  );

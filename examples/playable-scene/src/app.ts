@@ -1,28 +1,17 @@
 import * as A from "fp-ts/lib/Array";
 import * as O from "fp-ts/lib/Option";
 import * as S from "fp-ts/lib/String";
-import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 import { vec2 } from "gl-matrix";
 
 import {
-  GameData,
   YehatScene2D,
   addKeyListeners,
-  bindBuffers,
-  getTextureCoordsForFrame,
-  initializeDefaultScene2D,
   isKeyDown,
-  runGame,
-  processGameTick,
-  setIsKeyDown,
+  startGame,
 } from "@yehat/yehat/src/v2/core";
 import { rgb } from "@yehat/yehat/src/v2/colors";
-import {
-  createDefaultRectangle,
-  createSprite,
-  createText,
-} from "@yehat/yehat/src/v2/shapes";
+import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
 import { addV2, createV2, zeroV2 } from "@yehat/yehat/src/v2/math";
 
 import {
@@ -33,19 +22,19 @@ import {
   emptyTextures,
   movePosition,
   setCurrentAnimation,
-  setCurrentFrame,
-  setDefaultFrame,
-  setDirection,
+  currentFrame,
+  defaultFrame,
+  direction,
   setGroupSize,
-  setLastFrameChange,
-  setPosition,
-  setSize,
+  lastFrameChange,
   setTag,
   setTexture,
   setTextureCoords,
-  setTextureFrameGridWidth,
-  setTranslation,
-  setVelocity,
+  textureFrameGridWidth,
+  translation,
+  velocity,
+  getTextureCoordsForFrame,
+  bindBuffers,
 } from "@yehat/yehat/src/v2/gameObject";
 
 enum Textures {
@@ -72,70 +61,52 @@ enum Animations {
   MarioRun,
 }
 
-interface PlayableGameData extends GameData {}
+interface PlayableGameData {
+  canJump: boolean;
+}
 
 type PlayableScene = YehatScene2D<PlayableGameData>;
 
 const createTile =
-  (width: number, height: number) =>
+  (size: [width: number, height: number]) =>
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createDefaultRectangle(gl)(),
-      setSize(gl)(width, height),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, size), setTexture(texture));
 
-const createLargeWideTile = createTile(128, 64);
-
-const createLargeTile = createTile(64, 64);
-
-const createSmallTile = createTile(32, 32);
-
-const createFloorTile = createTile(640, 32);
+const createLargeWideTile = createTile([128, 64]);
+const createLargeTile = createTile([64, 64]);
+const createSmallTile = createTile([32, 32]);
+const createFloorTile = createTile([640, 32]);
 
 const createFloor = (gl: WebGLRenderingContext) => () =>
   pipe(
-    createFloorTile(gl)(Textures.FloorTile)(320, 6),
+    createFloorTile(gl)(Textures.FloorTile)([320, 6]),
     setTextureCoords(new Float32Array([0, 1, 16, 1, 16, 0, 0, 1, 16, 0, 0, 0]))
   );
 
 const createCharacter =
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createSprite(gl)(),
-      setSize(gl)(32, 32),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, [32, 32]), setTexture(texture));
 
-const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
-  pipe(
-    createSprite(gl)(),
-    setSize(gl)(32, 32),
-    setPosition(gl)(x, y),
-    setTexture(Textures.MarioSprite),
-    setTextureFrameGridWidth(4),
-    setCurrentFrame(1),
-    setDefaultFrame(1),
-    addAnimation(Animations.MarioRun, [2, 3, 4]),
-    setTag("mario")
-  );
+const createMario =
+  (gl: WebGLRenderingContext) => (position: [x: number, y: number]) =>
+    pipe(
+      createCharacter(gl)(Textures.MarioSprite)(position),
+      textureFrameGridWidth.set(4),
+      currentFrame.set(1),
+      defaultFrame.set(1),
+      addAnimation(Animations.MarioRun, [2, 3, 4]),
+      setTag("mario")
+    );
 
 const createSymbol =
   (gl: WebGLRenderingContext) =>
   (texture: Textures) =>
-  (x: number, y: number) =>
-    pipe(
-      createSprite(gl)(),
-      setSize(gl)(16, 16),
-      setPosition(gl)(x, y),
-      setTexture(texture)
-    );
+  (position: [x: number, y: number]) =>
+    pipe(createRectangle(gl)(position, [16, 16]), setTexture(texture));
 
 const createMarioText =
   (gl: WebGLRenderingContext) =>
@@ -172,32 +143,32 @@ const createGameObjects = (gl: WebGLRenderingContext) => {
 
   return [
     // background
-    createLargeWideTile(Textures.Bush)(54, 54),
-    createLargeWideTile(Textures.Hill)(166, 54),
-    createLargeTile(Textures.BushSmall)(420, 54),
+    createLargeWideTile(Textures.Bush)([54, 54]),
+    createLargeWideTile(Textures.Hill)([166, 54]),
+    createLargeTile(Textures.BushSmall)([420, 54]),
     // floor
     createFloor(),
     // platform tiles
-    createTile(Textures.Tile25)(112, 118),
-    createTile(Textures.Bricks)(230, 118),
-    createTile(Textures.Iron)(262, 118),
-    createTile(Textures.Bricks)(294, 118),
-    createTile(Textures.Tile25)(326, 118),
-    createTile(Textures.Bricks)(358, 118),
-    createTile(Textures.Tile25)(294, 202),
-    pipe(createLargeTile(Textures.Pipe)(564, 54), setTag("pipe")),
+    createTile(Textures.Tile25)([112, 118]),
+    createTile(Textures.Bricks)([230, 118]),
+    createTile(Textures.Iron)([262, 118]),
+    createTile(Textures.Bricks)([294, 118]),
+    createTile(Textures.Tile25)([326, 118]),
+    createTile(Textures.Bricks)([358, 118]),
+    createTile(Textures.Tile25)([294, 202]),
+    pipe(createLargeTile(Textures.Pipe)([564, 54]), setTag("pipe")),
     // mario
-    createMario(120, 36),
+    createMario([120, 36]),
     // sky
-    createLargeTile(Textures.CloudSmall)(94, 252),
-    createLargeWideTile(Textures.Cloud)(554, 238),
+    createLargeTile(Textures.CloudSmall)([94, 252]),
+    createLargeWideTile(Textures.Cloud)([554, 238]),
     // game info text
     ...createMarioText(16)(100, 356)("MARIO"),
     ...createMarioText(16)(330, 356)("WORLD"),
     ...createMarioText(16)(470, 356)("TIME"),
     ...createMarioText(16)(100, 336)("000000"),
-    createSymbol(Textures.Coin)(236, 336),
-    createSymbol(Textures.X)(252, 336),
+    createSymbol(Textures.Coin)([236, 336]),
+    createSymbol(Textures.X)([252, 336]),
     ...createMarioText(16)(270, 336)("00"),
     ...createMarioText(16)(344, 336)("1-1"),
     ...createMarioText(16)(480, 336)("000"),
@@ -212,7 +183,7 @@ const createScene = (
   previousTime: 0,
   keysHandled: {},
   animationInterval: 1000 / 12,
-  gameData: {},
+  gameData: { canJump: true },
   textures: pipe(
     emptyTextures(),
     addTexture(Textures.Bush, "assets/textures/bush.png"),
@@ -342,9 +313,9 @@ const detectCollisions =
       if (collision.isCollision) {
         newCharacter = pipe(
           newCharacter,
-          setTranslation(collision.newTranslation),
-          setVelocity(collision.newVelocity)
-        ) as GameObject2D;
+          translation.set(collision.newTranslation),
+          velocity.set(collision.newVelocity)
+        );
         newGameData = { ...newGameData, canJump: true };
       }
     }
@@ -380,22 +351,22 @@ const handleInput =
     if (isKeyDown("ArrowLeft")) {
       newMario = pipe(
         newMario,
-        setVelocity(createV2(-0.5, newMario.velocity[1])),
+        velocity.set(createV2(-0.5, newMario.velocity[1])),
         setCurrentAnimation(Animations.MarioRun),
-        setDirection(createV2(-1, 0))
+        direction.set(createV2(-1, 0))
       );
     } else if (isKeyDown("ArrowRight")) {
       newMario = pipe(
         newMario,
-        setVelocity(createV2(0.5, newMario.velocity[1])),
+        velocity.set(createV2(0.5, newMario.velocity[1])),
         setCurrentAnimation(Animations.MarioRun),
-        setDirection(createV2(1, 0))
+        direction.set(createV2(1, 0))
       );
     } else {
       newMario = pipe(
         newMario,
-        setVelocity(createV2(0, newMario.velocity[1])),
-        pipe(newMario.defaultFrame, setCurrentFrame)
+        velocity.set(createV2(0, newMario.velocity[1])),
+        pipe(newMario.defaultFrame, currentFrame.set)
       );
     }
 
@@ -403,7 +374,7 @@ const handleInput =
       if (!newKeyHandled["ArrowUp"] && gameData.canJump) {
         newMario = pipe(
           newMario,
-          pipe(newMario.velocity, addV2(createV2(0, 1.4)), setVelocity)
+          pipe(newMario.velocity, addV2(createV2(0, 1.4)), velocity.set)
         );
         newKeyHandled = { ...keysHandled, ArrowUp: true };
         newGameData = {
@@ -436,7 +407,7 @@ const updateScene =
 
     let [newGameData, newKeyHandled, newMario] = pipe(
       mario,
-      clearCurrentAnimation,
+      clearCurrentAnimation(),
       handleInput(gameData)(keysHandled)
     );
 
@@ -453,9 +424,9 @@ const updateScene =
             newMario.currentAnimation.value,
             newMario.animations
           ),
-          setCurrentFrame
+          currentFrame.set
         ),
-        pipe(scene.currentTime, setLastFrameChange)
+        pipe(scene.currentTime, lastFrameChange.set)
       );
     }
 
@@ -478,7 +449,7 @@ const updateScene =
       addV2(gravityVelocity)
     );
 
-    newMario = pipe(newMario, setVelocity(newVelocity));
+    newMario = pipe(newMario, velocity.set(newVelocity));
 
     const elapsedTime = scene.currentTime - scene.previousTime;
 
@@ -506,14 +477,13 @@ const updateScene =
     };
   };
 
-const startup = (gl: WebGLRenderingContext) =>
-  pipe(
-    gl,
-    createScene,
-    initializeDefaultScene2D(gl),
-    TE.chain(pipe(updateScene, processGameTick(gl)))
-  );
+const initOptions = {
+  window,
+  canvasId: "#glcanvas",
+  createScene,
+  updateScene,
+};
 
-pipe(startup, runGame(window)("#glcanvas"));
+pipe(initOptions, startGame);
 
 addKeyListeners(window);
