@@ -19,7 +19,7 @@ import {
   setSize,
   setTexture,
   setTextureCoords,
-  setTextureFrameGridWidth,
+  textureFrameGridWidth,
   updateAnimations,
 } from "@yehat/yehat/src/v2/gameObject";
 import { rgb } from "@yehat/yehat/src/v2/colors";
@@ -49,7 +49,7 @@ const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
     setSize(gl)(128, 128),
     setPosition(gl)(x, y),
     setTexture(Textures.Mario),
-    setTextureFrameGridWidth(marioSpriteFrameGridWidth),
+    textureFrameGridWidth.set(marioSpriteFrameGridWidth),
     currentFrame.set(marioDefaultFrame),
     defaultFrame.set(marioDefaultFrame),
     setTextureCoords(getMarioTextureCoordsForFrame(marioDefaultFrame)),

@@ -7,8 +7,8 @@ import { Option } from "fp-ts/lib/Option";
 import * as T from "fp-ts/lib/Task";
 import * as TE from "fp-ts/lib/TaskEither";
 import { TaskEither } from "fp-ts/lib/TaskEither";
-
-import { vec2, vec4 } from "gl-matrix";
+import { vec4 } from "gl-matrix";
+import { Lens } from "monocle-ts";
 
 import {
   attachShader,
@@ -29,18 +29,9 @@ import {
 } from "./web";
 import { defaultFs } from "./shaders/defaultFs";
 import { defaultVs } from "./shaders/defaultVs";
-import {
-  addArray,
-  createV4,
-  equalsV2,
-  inverse,
-  multiplyArray,
-  reciprocal,
-  rightV2,
-} from "./math";
+import { createV4 } from "./math";
 import type { GameObject2D, Texture } from "./gameObject";
 import { DrawMode, bindBuffers, createBuffers } from "./gameObject";
-import { Lens } from "monocle-ts";
 
 export enum ShaderType {
   Vertex,

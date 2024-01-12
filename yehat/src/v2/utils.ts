@@ -6,6 +6,8 @@ import { vec2 } from "gl-matrix";
 
 export const numberToString = (n: number) => n.toString();
 
+// Tap
+
 export const tap =
   <A>(f: (a: A) => void) =>
   (a: A): A => {
@@ -23,33 +25,16 @@ export const tapE =
     );
   };
 
-export const log = <T>(...data: unknown[]) =>
-  tap((a: T) => {
-    console.log(...data, a);
-  });
+// Log
 
-export const logE = <T>(...data: unknown[]) =>
-  E.map(
-    tap((a: T) => {
-      console.log(...data, a);
-    })
-  );
-
-export const logTE = <T>(...data: unknown[]) =>
-  TE.map(
-    tap((a: T) => {
-      console.log(...data, a);
-    })
-  );
-
-export const logF = (...data: unknown[]): false => {
+export const log = (...data: unknown[]): false => {
   console.log(...data);
   return false;
 };
 
 export const getLogOnce = () => {
   let logged = false;
-  return (...data: unknown[]) => {
+  return (...data: unknown[]): false => {
     if (!logged) {
       console.log(...data);
       logged = true;
@@ -57,6 +42,25 @@ export const getLogOnce = () => {
     return false;
   };
 };
+
+export const tapLog = <T>(...data: unknown[]) =>
+  tap((a: T) => {
+    console.log(...data, a);
+  });
+
+export const tapLogE = <T>(...data: unknown[]) =>
+  E.map(
+    tap((a: T) => {
+      console.log(...data, a);
+    })
+  );
+
+export const tapLogTE = <T>(...data: unknown[]) =>
+  TE.map(
+    tap((a: T) => {
+      console.log(...data, a);
+    })
+  );
 
 // TODO: replace assoc with monocle-ts
 export const assoc =

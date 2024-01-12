@@ -1,14 +1,12 @@
 import * as A from "fp-ts/lib/Array";
-import * as O from "fp-ts/lib/Option";
-import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 
 import {
-  GameData,
   YehatScene2D,
-  initializeDefaultScene2D,
-  loadGame,
-  processGameTick,
+  addKeyListeners,
+  createYehat2DScene,
+  isKeyDown,
+  startGame,
 } from "@yehat/yehat/src/v2/core";
 import {
   GameObject2D,
@@ -28,125 +26,81 @@ enum Textures {
   MarioFont,
 }
 
-interface KeyboardInputGameData extends GameData {
-  moved: boolean;
-}
+type KeyboardInputScene = YehatScene2D<{}>;
 
-type KeyboardInputScene = YehatScene2D<KeyboardInputGameData>;
+const createMario = (gl: WebGLRenderingContext) => (x: number, y: number) =>
+  pipe(
+    createSprite(gl)(),
+    setSize(gl)(32, 32),
+    setPosition(gl)(x, y),
+    setTexture(Textures.Mario)
+  );
 
-let keyboardState: { [key: string]: boolean } = {};
-
-const isKeyDown = (key: string): boolean => !!keyboardState[key];
-
-const setIsKeyDown = (key: string, isDown: boolean): void => {
-  keyboardState = { ...keyboardState, [key]: isDown };
-};
-
-const createCharacter =
+const createMarioText =
   (gl: WebGLRenderingContext) =>
-  (texture: Textures) =>
-  (x: number, y: number) =>
+  (fontSize: number) =>
+  (deltaX: number, deltaY: number) =>
+  (text: string) =>
     pipe(
-      createSprite(gl)(),
-      setSize(gl)(32, 32),
-      setPosition(gl)(x, y),
-      setTexture(texture)
+      createText(gl)(Textures.MarioFont)(text),
+      setGroupSize(gl)(fontSize, fontSize),
+      A.map(movePosition(gl)(deltaX, deltaY))
     );
 
-const getGameObjectCreators = (gl: WebGLRenderingContext) => ({
-  createCharacter: createCharacter(gl),
-});
-
-const createGameObjects = (gl: WebGLRenderingContext) => {
-  const { createCharacter } = getGameObjectCreators(gl);
-
-  const createMarioText = createText(gl)(Textures.MarioFont);
-
-  return [
-    createCharacter(Textures.Mario)(286, 70),
-    ...pipe(
-      createMarioText("ARROW LEFT"),
-      setGroupSize(gl)(32, 32),
-      A.map(movePosition(gl)(180, 340))
+const createScene = (gl: WebGLRenderingContext): KeyboardInputScene =>
+  createYehat2DScene(gl)({
+    clearColor: rgb(127, 149, 255),
+    gameData: {},
+    textures: pipe(
+      emptyTextures(),
+      addTexture(Textures.Mario, "assets/textures/mario.png"),
+      addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png")
     ),
-    ...pipe(
-      createMarioText("ARROW RIGHT"),
-      setGroupSize(gl)(32, 32),
-      A.map(movePosition(gl)(168, 260))
-    ),
-  ];
-};
-
-const createScene = (
-  gl: WebGLRenderingContext
-): YehatScene2D<KeyboardInputGameData> => ({
-  isInitialized: false as const,
-  clearColor: rgb(127, 149, 255),
-  currentTime: 0,
-  previousTime: 0,
-  keysHandled: {},
-  animationInterval: 1000 / 12,
-  gameData: {
-    moved: false,
-  },
-  textures: pipe(
-    emptyTextures(),
-    addTexture(Textures.Mario, "assets/textures/mario.png"),
-    addTexture(Textures.MarioFont, "assets/fonts/mario_font_square.png")
-  ),
-  gameObjects: createGameObjects(gl),
-  context: O.none,
-});
+    gameObjects: [
+      createMario(gl)(286, 70),
+      ...createMarioText(gl)(32)(180, 340)("ARROW LEFT"),
+      ...createMarioText(gl)(32)(168, 260)("ARROW RIGHT"),
+    ],
+  });
 
 const handleInput =
   (gl: WebGLRenderingContext) =>
-  (gameData: KeyboardInputGameData) =>
-  (mario: GameObject2D) => {
+  (mario: GameObject2D): GameObject2D => {
     if (isKeyDown("ArrowLeft")) {
       const newM = movePosition(gl)(-6, 0)(mario);
-      const newGD = { ...gameData, moved: true };
-      return [newGD, newM] as const;
+      return newM;
     }
 
     if (isKeyDown("ArrowRight")) {
       const newM = movePosition(gl)(6, 0)(mario);
-      const newGD = { ...gameData, moved: true };
-      return [newGD, newM] as const;
+      return newM;
     }
 
-    return [gameData, mario] as const;
+    return mario;
   };
 
 const updateScene =
   (gl: WebGLRenderingContext) =>
   (scene: KeyboardInputScene): KeyboardInputScene => {
-    const { gameData, gameObjects } = scene;
+    const { gameObjects } = scene;
 
     const [mario, ...restGameObjects] = gameObjects;
 
-    const [newGameData, newMario] = handleInput(gl)(gameData)(mario);
+    const newMario = handleInput(gl)(mario);
 
     return {
       ...scene,
-      gameData: newGameData,
       gameObjects: [newMario, ...restGameObjects],
     };
   };
 
-const startup = (gl: WebGLRenderingContext) =>
-  pipe(
-    gl,
-    createScene,
-    initializeDefaultScene2D(gl),
-    TE.chain(pipe(updateScene, processGameTick(gl)))
-  );
+const initOptions = {
+  window,
+  canvasId: "#glcanvas",
+  createScene,
+  updateScene,
+};
 
-pipe(startup, loadGame(window)("#glcanvas"));
+pipe(initOptions, startGame);
 
-document.addEventListener("keydown", (event) => {
-  setIsKeyDown(event.key, true);
-});
-
-document.addEventListener("keyup", (event) => {
-  setIsKeyDown(event.key, false);
-});
+addKeyListeners(window);

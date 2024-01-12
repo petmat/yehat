@@ -8,7 +8,7 @@ import { Task } from "fp-ts/lib/Task";
 export const addWindowEventListener =
   (options: AddEventListenerOptions) =>
   <K extends keyof WindowEventMap>(type: K) =>
-  (listener: (this: Window, ev: WindowEventMap[K]) => any) =>
+  (listener: (ev: WindowEventMap[K]) => any) =>
   (window: Window) => {
     window.addEventListener(type, listener, options);
   };

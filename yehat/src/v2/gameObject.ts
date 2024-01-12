@@ -1,10 +1,10 @@
-import { constant, flow, pipe } from "fp-ts/lib/function";
+import { constant, flow, identity, pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
 import * as E from "fp-ts/lib/Either";
 import { Either } from "fp-ts/lib/Either";
 import * as O from "fp-ts/lib/Option";
 import { Option } from "fp-ts/lib/Option";
-import { upsertAt } from "fp-ts/lib/Record";
+import * as R from "fp-ts/lib/Record";
 import { vec2, vec4 } from "gl-matrix";
 import { Lens, fromTraversable } from "monocle-ts";
 
@@ -41,9 +41,9 @@ export interface GameObject2D {
   drawMode: DrawMode;
   texture: Option<number>;
   textureCoords: Float32Array;
-  textureFrameGridWidth: Option<number>;
+  textureFrameGridWidth: number;
   defaultFrame: number;
-  animations: Record<number, number[]>;
+  animations: Record<string, number[]>;
   currentAnimation: Option<number>;
   lastFrameChange: number;
   direction: vec2;
@@ -107,9 +107,6 @@ export const clearCurrentAnimation = () => currentAnimation.set(O.none);
 
 export const setTag = (val: string) => tag.set(O.some(val));
 
-export const setTextureFrameGridWidth = (val: number) =>
-  textureFrameGridWidth.set(O.some(val));
-
 export const translate =
   (delta: vec2) =>
   (gameObject: GameObject2D): GameObject2D =>
@@ -155,7 +152,7 @@ export const addAnimation =
       pipe(
         pipe(
           animations.get(gameObj),
-          upsertAt(pipe(key, numberToString), animation)
+          R.upsertAt(pipe(key, numberToString), animation)
         ),
         animations.set
       )
@@ -249,7 +246,7 @@ export const createDefaultGameObject =
     drawMode: DrawMode.Triangles,
     texture: O.none,
     textureCoords: new Float32Array(),
-    textureFrameGridWidth: O.none,
+    textureFrameGridWidth: 1,
     defaultFrame: 0,
     animations: {},
     currentAnimation: O.none,
@@ -360,28 +357,48 @@ export const bindBuffers =
     );
   };
 
+const nextAnimationFrameIndex = (frame: number) => (animation: number[]) =>
+  animation.indexOf(frame) + 1;
+
+const nextFrameFromAnimation = (frame: number) => (animation: number[]) => {
+  return pipe(
+    pipe(
+      animation,
+      A.lookup(
+        pipe(
+          nextAnimationFrameIndex(frame)(animation),
+          wrap(animation.length - 1)
+        )
+      )
+    ),
+    O.fold(constant(frame), identity)
+  );
+};
+
 // Animations
-const nextFrame = (animation: number[] | undefined) => (frame: number) =>
-  animation
-    ? animation[wrap(animation.length - 1)(animation.indexOf(frame) + 1)]
-    : frame;
+const nextFrame = (animation: Option<number[]>) => (frame: number) =>
+  pipe(animation, O.fold(constant(frame), nextFrameFromAnimation(frame)));
 
 const gameObjectTraversal = fromTraversable(A.Traversable)<GameObject2D>();
+
+const getTextureCoordsForGameObject = (gameObj: GameObject2D): Float32Array =>
+  pipe(
+    gameObj.currentFrame,
+    getTextureCoordsForFrame(gameObj.textureFrameGridWidth)(gameObj.direction)
+  );
 
 const applyAnimation =
   (currentTime: number, animationInterval: number) =>
   (gameObj: GameObject2D) =>
-  (animation: number) =>
+  (animationKey: number) =>
     currentTime - gameObj.lastFrameChange >= animationInterval
       ? pipe(
           gameObj,
-          currentFrame.modify(nextFrame(gameObj.animations[animation])),
+          currentFrame.modify(
+            nextFrame(pipe(gameObj.animations, R.lookup(String(animationKey))))
+          ),
           lastFrameChange.set(currentTime),
-          pipe(
-            gameObj.currentFrame,
-            getTextureCoordsForFrame(4)(rightV2()),
-            setTextureCoords
-          )
+          pipe(getTextureCoordsForGameObject(gameObj), setTextureCoords)
         )
       : gameObj;
 
