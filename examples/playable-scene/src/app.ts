@@ -2,7 +2,6 @@ import * as A from "fp-ts/lib/Array";
 import * as O from "fp-ts/lib/Option";
 import * as S from "fp-ts/lib/String";
 import { pipe } from "fp-ts/lib/function";
-import { vec2 } from "gl-matrix";
 
 import {
   YehatScene2D,
@@ -10,6 +9,7 @@ import {
   isKeyDown,
   startGame,
 } from "@yehat/yehat/src/v2/core";
+import { collides } from "@yehat/yehat/src/v2/collisions";
 import { rgb } from "@yehat/yehat/src/v2/colors";
 import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
 import { addV2, createV2, zeroV2 } from "@yehat/yehat/src/v2/math";
@@ -209,99 +209,7 @@ const createScene = (
   yehatContext: O.none,
 });
 
-interface Rectangle {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
-const getBoundingBox = (gameObj: GameObject2D): Rectangle => {
-  return {
-    left: gameObj.translation[0] - gameObj.scale[0],
-    top: gameObj.translation[1] + gameObj.scale[1],
-    right: gameObj.translation[0] + gameObj.scale[0],
-    bottom: gameObj.translation[1] - gameObj.scale[1],
-  };
-};
-
-const isMovingDown = (gameObj: GameObject2D) => gameObj.velocity[1] < 0;
-
-const isMovingUp = (gameObj: GameObject2D) => gameObj.velocity[1] > 0;
-
-const isMovingRight = (gameObj: GameObject2D) => gameObj.velocity[0] > 0;
-
-interface Collision {
-  isCollision: boolean;
-  newTranslation: vec2;
-  newVelocity: vec2;
-}
-
-const collides =
-  (gameObjA: GameObject2D) =>
-  (gameObjB: GameObject2D): Collision => {
-    const boxA = getBoundingBox(gameObjA);
-    const boxB = getBoundingBox(gameObjB);
-
-    if (
-      isMovingDown(gameObjA) &&
-      boxA.bottom < boxB.top &&
-      boxA.top > boxB.top &&
-      ((boxA.left < boxB.right && boxA.left > boxB.left) ||
-        (boxA.right > boxB.left && boxA.right < boxB.right))
-    ) {
-      return {
-        isCollision: true,
-        newTranslation: createV2(
-          gameObjA.translation[0],
-          gameObjA.translation[1] - (boxA.bottom - boxB.top)
-        ),
-        newVelocity: createV2(gameObjA.velocity[0], 0),
-      };
-    }
-
-    if (
-      isMovingUp(gameObjA) &&
-      boxA.top > boxB.bottom &&
-      boxA.bottom < boxB.bottom &&
-      ((boxA.left < boxB.right && boxA.left > boxB.left) ||
-        (boxA.right > boxB.left && boxA.right < boxB.right))
-    ) {
-      return {
-        isCollision: true,
-        newTranslation: createV2(
-          gameObjA.translation[0],
-          gameObjA.translation[1] - (boxA.top - boxB.bottom)
-        ),
-        newVelocity: createV2(gameObjA.velocity[0], 0),
-      };
-    }
-
-    if (
-      isMovingRight(gameObjA) &&
-      boxA.right > boxB.left &&
-      boxA.left < boxB.left &&
-      ((boxA.bottom < boxB.top && boxA.bottom > boxB.bottom) ||
-        (boxA.top > boxB.bottom && boxA.top < boxB.top))
-    ) {
-      return {
-        isCollision: true,
-        newTranslation: createV2(
-          gameObjA.translation[0] - (boxA.right - boxB.left),
-          gameObjA.translation[1]
-        ),
-        newVelocity: createV2(0, gameObjA.velocity[1]),
-      };
-    }
-
-    return {
-      isCollision: false,
-      newTranslation: gameObjA.translation,
-      newVelocity: gameObjA.velocity,
-    };
-  };
-
-const detectCollisions =
+export const detectCollisions =
   (gameData: PlayableGameData) =>
   (character: GameObject2D) =>
   (platforms: GameObject2D[]): [PlayableGameData, GameObject2D] => {
@@ -374,8 +282,10 @@ const handleInput =
       if (!newKeyHandled["ArrowUp"] && gameData.canJump) {
         newMario = pipe(
           newMario,
-          pipe(newMario.velocity, addV2(createV2(0, 1.4)), velocity.set)
+          pipe(newMario.velocity, addV2(createV2(0, 1.4)), velocity.set),
+          pipe(0, currentFrame.set)
         );
+        console.log("jumpajumpa", newMario.currentFrame);
         newKeyHandled = { ...keysHandled, ArrowUp: true };
         newGameData = {
           ...newGameData,

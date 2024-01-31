@@ -110,7 +110,11 @@ export const setTag = (val: string) => tag.set(O.some(val));
 export const translate =
   (delta: vec2) =>
   (gameObject: GameObject2D): GameObject2D =>
-    pipe(gameObject, translation.modify(addV2(delta)));
+    pipe(
+      gameObject,
+      previousTranslation.modify(constant(translation.get(gameObject))),
+      translation.modify(addV2(delta))
+    );
 
 const calculateGroupScaleOffsetStep = (
   value: number,

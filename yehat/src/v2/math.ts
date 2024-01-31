@@ -28,20 +28,26 @@ export const zeroV2 = () => {
   return v;
 };
 
-export const rightV2 = () => vec2.fromValues(1, 0);
-
 export const addV2 =
   (b: vec2) =>
   (a: vec2): vec2 => {
-    let out = vec2.create();
+    const out = vec2.create();
     vec2.add(out, a, b);
+    return out;
+  };
+
+export const subtractV2 =
+  (b: vec2) =>
+  (a: vec2): vec2 => {
+    const out = vec2.create();
+    vec2.subtract(out, a, b);
     return out;
   };
 
 export const divideV2 =
   (b: vec2) =>
   (a: vec2): vec2 => {
-    let out = vec2.create();
+    const out = vec2.create();
     vec2.divide(out, a, b);
     return out;
   };
@@ -49,12 +55,22 @@ export const divideV2 =
 export const multiplyV2 =
   (b: vec2) =>
   (a: vec2): vec2 => {
-    let out = vec2.create();
+    const out = vec2.create();
     vec2.multiply(out, a, b);
     return out;
   };
 
 export const equalsV2 = (b: vec2) => (a: vec2) => vec2.equals(a, b);
+
+export const upV2 = () => vec2.fromValues(0, 1);
+export const downV2 = () => vec2.fromValues(0, -1);
+export const leftV2 = () => vec2.fromValues(-1, 0);
+export const rightV2 = () => vec2.fromValues(1, 0);
+
+export const upLeftV2 = () => addV2(upV2())(leftV2());
+export const upRightV2 = () => addV2(upV2())(rightV2());
+export const downRightV2 = () => addV2(downV2())(rightV2());
+export const downLeftV2 = () => addV2(downV2())(leftV2());
 
 // 4-dimensional vector
 
@@ -70,7 +86,7 @@ export const zeroV4 = () => {
 export const addV4 =
   (b: vec4) =>
   (a: vec4): vec4 => {
-    let out = vec4.create();
+    const out = vec4.create();
     vec4.add(out, a, b);
     return out;
   };
@@ -78,7 +94,7 @@ export const addV4 =
 export const divideV4 =
   (b: vec4) =>
   (a: vec4): vec4 => {
-    let out = vec4.create();
+    const out = vec4.create();
     vec4.divide(out, a, b);
     return out;
   };
@@ -86,7 +102,7 @@ export const divideV4 =
 export const multiplyV4 =
   (b: vec4) =>
   (a: vec4): vec4 => {
-    let out = vec4.create();
+    const out = vec4.create();
     vec4.multiply(out, a, b);
     return out;
   };
