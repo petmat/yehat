@@ -8,10 +8,11 @@ export const defaultFs = `
   uniform vec4 uGlobalColor;
   uniform sampler2D uTexture;
   uniform bool uHasTexture;
+  uniform vec4 uColor;
 
   void main() {
     if (uHasTexture) {
-      gl_FragColor = texture2D(uTexture, vTextureCoord);
+      gl_FragColor = texture2D(uTexture, vTextureCoord) * uColor;
     } else {
       gl_FragColor = uGlobalColor;
     }

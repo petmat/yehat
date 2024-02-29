@@ -1,6 +1,9 @@
 import { vec2, vec4 } from "gl-matrix";
 import { pipe } from "fp-ts/lib/function";
 import * as A from "fp-ts/lib/Array";
+import { Lens } from "monocle-ts";
+
+export const add = (b: number) => (a: number) => a + b;
 
 export const multiply = (b: number) => (a: number) => a * b;
 
@@ -71,6 +74,13 @@ export const upLeftV2 = () => addV2(upV2())(leftV2());
 export const upRightV2 = () => addV2(upV2())(rightV2());
 export const downRightV2 = () => addV2(downV2())(rightV2());
 export const downLeftV2 = () => addV2(downV2())(leftV2());
+
+export const sqrDistV2 = (b: vec2) => (a: vec2) => {
+  return vec2.sqrDist(a, b);
+};
+
+export const xV2 = Lens.fromProp<vec2>()(0);
+export const yV2 = Lens.fromProp<vec2>()(1);
 
 // 4-dimensional vector
 

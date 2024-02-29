@@ -9,6 +9,7 @@ import { vec2, vec4 } from "gl-matrix";
 import { Lens, fromTraversable } from "monocle-ts";
 
 import {
+  add,
   addArray,
   addV2,
   createV2,
@@ -20,9 +21,12 @@ import {
   multiplyV2,
   reciprocal,
   rightV2,
+  xV2,
+  yV2,
   zeroV2,
 } from "./math";
 import { numberToString, tap, toFloat32Array, wrap } from "./utils";
+import { Rectangle } from "./collisions";
 
 export enum DrawMode {
   Points,
@@ -51,6 +55,8 @@ export interface GameObject2D {
   tag: Option<string>;
   vertexBuffer: Option<WebGLBuffer>;
   textureCoordBuffer: Option<WebGLBuffer>;
+  isColliding: boolean;
+  collidesWith: Option<Rectangle>;
 }
 
 export interface Texture {
@@ -60,6 +66,8 @@ export interface Texture {
 export const vertices = Lens.fromProp<GameObject2D>()("vertices");
 
 export const translation = Lens.fromProp<GameObject2D>()("translation");
+export const translationX = translation.compose(xV2);
+export const translationY = translation.compose(yV2);
 
 export const previousTranslation = Lens.fromProp<GameObject2D>()(
   "previousTranslation"
@@ -68,6 +76,8 @@ export const previousTranslation = Lens.fromProp<GameObject2D>()(
 export const velocity = Lens.fromProp<GameObject2D>()("velocity");
 
 export const scale = Lens.fromProp<GameObject2D>()("scale");
+export const scaleX = scale.compose(xV2);
+export const scaleY = scale.compose(yV2);
 
 export const rotation = Lens.fromProp<GameObject2D>()("rotation");
 
@@ -106,6 +116,13 @@ export const setCurrentAnimation = (val: number) =>
 export const clearCurrentAnimation = () => currentAnimation.set(O.none);
 
 export const setTag = (val: string) => tag.set(O.some(val));
+
+export const isColliding = Lens.fromProp<GameObject2D>()("isColliding");
+
+export const collidesWith = Lens.fromProp<GameObject2D>()("collidesWith");
+
+export const getGameObjLeft = (gameObj: GameObject2D) =>
+  pipe(gameObj, translationX.get, add(scaleX.get(gameObj)));
 
 export const translate =
   (delta: vec2) =>
@@ -260,6 +277,8 @@ export const createDefaultGameObject =
     tag: O.none,
     vertexBuffer: O.none,
     textureCoordBuffer: O.none,
+    isColliding: false,
+    collidesWith: O.none,
   });
 
 export const setSize =

@@ -9,10 +9,10 @@ import {
   isKeyDown,
   startGame,
 } from "@yehat/yehat/src/v2/core";
-import { collides } from "@yehat/yehat/src/v2/collisions";
+import { collides, getBoundingBox } from "@yehat/yehat/src/v2/collisions";
 import { rgb } from "@yehat/yehat/src/v2/colors";
 import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
-import { addV2, createV2, zeroV2 } from "@yehat/yehat/src/v2/math";
+import { addV2, createV2, xV2, zeroV2 } from "@yehat/yehat/src/v2/math";
 
 import {
   GameObject2D,
@@ -35,6 +35,8 @@ import {
   velocity,
   getTextureCoordsForFrame,
   bindBuffers,
+  isColliding,
+  collidesWith,
 } from "@yehat/yehat/src/v2/gameObject";
 
 enum Textures {
@@ -210,25 +212,29 @@ const createScene = (
 });
 
 export const detectCollisions =
-  (gameData: PlayableGameData) =>
   (character: GameObject2D) =>
-  (platforms: GameObject2D[]): [PlayableGameData, GameObject2D] => {
+  (platforms: GameObject2D[]): GameObject2D => {
     let newCharacter = character;
-    let newGameData = gameData;
+
+    newCharacter = pipe(
+      newCharacter,
+      isColliding.set(false),
+      collidesWith.set(O.none)
+    );
 
     for (const platform of platforms) {
-      const collision = collides(newCharacter)(platform);
-      if (collision.isCollision) {
+      const isObjectsColliding = collides(newCharacter)(platform);
+
+      if (isObjectsColliding) {
         newCharacter = pipe(
           newCharacter,
-          translation.set(collision.newTranslation),
-          velocity.set(collision.newVelocity)
+          isColliding.set(true),
+          collidesWith.set(O.some(getBoundingBox(platform)))
         );
-        newGameData = { ...newGameData, canJump: true };
       }
     }
 
-    return [newGameData, newCharacter];
+    return newCharacter;
   };
 
 const nextFrame = (
@@ -285,7 +291,6 @@ const handleInput =
           pipe(newMario.velocity, addV2(createV2(0, 1.4)), velocity.set),
           pipe(0, currentFrame.set)
         );
-        console.log("jumpajumpa", newMario.currentFrame);
         newKeyHandled = { ...keysHandled, ArrowUp: true };
         newGameData = {
           ...newGameData,
@@ -311,9 +316,6 @@ const updateScene =
     const beforeGameObjects = gameObjects.slice(0, marioIndex);
     const mario = gameObjects[marioIndex];
     const afterGameObjects = gameObjects.slice(marioIndex + 1);
-
-    let jumpVelocity = zeroV2();
-    let gravityVelocity = createV2(0, -0.1);
 
     let [newGameData, newKeyHandled, newMario] = pipe(
       mario,
@@ -353,11 +355,9 @@ const updateScene =
 
     // Physics!!
 
-    const newVelocity = pipe(
-      newMario.velocity,
-      addV2(jumpVelocity),
-      addV2(gravityVelocity)
-    );
+    const gravityVelocity = createV2(0, -0.1);
+
+    const newVelocity = pipe(newMario.velocity, addV2(gravityVelocity));
 
     newMario = pipe(newMario, velocity.set(newVelocity));
 
@@ -371,13 +371,45 @@ const updateScene =
       )
     );
 
-    const [collisionGameData, collisionMario] = pipe(
-      gameObjects.slice(3, 12),
-      detectCollisions(newGameData)(newMario)
-    );
+    newMario = pipe(gameObjects.slice(3, 12), detectCollisions(newMario));
 
-    newGameData = collisionGameData;
-    newMario = collisionMario;
+    if (newMario.isColliding && newMario.collidesWith._tag === "Some") {
+      if (newMario.velocity[1] < 0) {
+        newMario = pipe(
+          newMario,
+          translation.set(
+            createV2(
+              translation.compose(xV2).get(newMario),
+              newMario.collidesWith.value.y +
+                newMario.collidesWith.value.height +
+                newMario.scale[1]
+            )
+          ),
+          velocity.set(zeroV2())
+        );
+        newGameData = { ...newGameData, canJump: true };
+      } else if (newMario.velocity[1] > 0) {
+        newMario = pipe(
+          newMario,
+          translation.set(
+            createV2(
+              translation.compose(xV2).get(newMario),
+              newMario.collidesWith.value.y -
+                newMario.collidesWith.value.height -
+                newMario.scale[1]
+            )
+          ),
+          velocity.set(zeroV2())
+        );
+        newGameData = { ...newGameData, canJump: true };
+      } else {
+        newMario = pipe(
+          newMario,
+          translation.set(translation.get(newMario)),
+          velocity.set(zeroV2())
+        );
+      }
+    }
 
     return {
       ...scene,

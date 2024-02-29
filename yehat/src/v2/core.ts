@@ -334,6 +334,9 @@ export const drawScene = <T>(scene: YehatScene2D<T>) => {
         );
         const uHasTexture = gl.getUniformLocation(program, "uHasTexture");
         const uTexture = gl.getUniformLocation(program, "uTexture");
+        const uColor = gl.getUniformLocation(program, "uColor");
+        const whiteColor = new Float32Array([1, 1, 1, 1]);
+        const redColor = new Float32Array([1, 0, 0, 1]);
 
         gl.uniform2fv(uScalingFactor, gameObject.scale);
         gl.uniform2fv(uRotationVector, gameObject.rotation);
@@ -344,6 +347,7 @@ export const drawScene = <T>(scene: YehatScene2D<T>) => {
           uTexture,
           gameObject.texture._tag === "Some" ? gameObject.texture.value : 0
         );
+        gl.uniform4fv(uColor, gameObject.isColliding ? redColor : whiteColor);
 
         const aVertexPosition = gl.getAttribLocation(
           program,

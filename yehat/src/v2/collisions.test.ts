@@ -16,11 +16,12 @@ import {
 test("gets bounding box", () => {
   const box = getBoundingBox({
     translation: createV2(3, 3),
-    scale: createV2(1, 1),
+    scale: createV2(2, 2),
     velocity: zeroV2(),
+    isColliding: false,
   });
 
-  expect(box).toEqual({ left: 2, top: 4, right: 4, bottom: 2 });
+  expect(box).toEqual({ width: 2, height: 2, x: 3, y: 3 });
 });
 
 test("does not collide if source object is on the left", () => {
@@ -28,14 +29,16 @@ test("does not collide if source object is on the left", () => {
     translation: createV2(3, 6),
     scale: createV2(1, 1),
     velocity: rightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the top-left", () => {
@@ -43,14 +46,16 @@ test("does not collide if source object is on the top-left", () => {
     translation: createV2(3, 9),
     scale: createV2(1, 1),
     velocity: downRightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the top", () => {
@@ -58,14 +63,16 @@ test("does not collide if source object is on the top", () => {
     translation: createV2(6, 9),
     scale: createV2(1, 1),
     velocity: downV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the top-right", () => {
@@ -73,14 +80,16 @@ test("does not collide if source object is on the top-right", () => {
     translation: createV2(9, 9),
     scale: createV2(1, 1),
     velocity: downLeftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the right", () => {
@@ -88,14 +97,16 @@ test("does not collide if source object is on the right", () => {
     translation: createV2(9, 6),
     scale: createV2(1, 1),
     velocity: leftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the bottom-right", () => {
@@ -103,14 +114,16 @@ test("does not collide if source object is on the bottom-right", () => {
     translation: createV2(9, 3),
     scale: createV2(1, 1),
     velocity: upLeftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the bottom", () => {
@@ -118,14 +131,16 @@ test("does not collide if source object is on the bottom", () => {
     translation: createV2(6, 3),
     scale: createV2(1, 1),
     velocity: rightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("does not collide if source object is on the bottom-left", () => {
@@ -133,34 +148,33 @@ test("does not collide if source object is on the bottom-left", () => {
     translation: createV2(3, 3),
     scale: createV2(1, 1),
     velocity: upRightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target).isCollision).toBeFalsy();
+  expect(collides(source)(target)).toBeFalsy();
 });
 
 test("collides from the left", () => {
-  console.log("FROM THEEE FEEEELLF");
   const source = {
-    translation: createV2(4.5, 6),
+    translation: createV2(5.5, 6),
     scale: createV2(1, 1),
     velocity: rightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(4, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the top", () => {
@@ -168,18 +182,33 @@ test("collides from the top", () => {
     translation: createV2(6, 6.5),
     scale: createV2(1, 1),
     velocity: downV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(6, 8),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
+});
+
+test("collides from the top on a wider object", () => {
+  const source = {
+    translation: createV2(2, 6.5),
+    scale: createV2(1, 1),
+    velocity: downV2(),
+    isColliding: false,
+  };
+  const target = {
+    translation: createV2(6, 6),
+    scale: createV2(20, 1),
+    velocity: zeroV2(),
+    isColliding: false,
+  };
+
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the right", () => {
@@ -187,18 +216,16 @@ test("collides from the right", () => {
     translation: createV2(6.5, 6),
     scale: createV2(1, 1),
     velocity: leftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(8, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the bottom", () => {
@@ -206,18 +233,16 @@ test("collides from the bottom", () => {
     translation: createV2(6, 5.5),
     scale: createV2(1, 1),
     velocity: upV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(6, 4),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the top left", () => {
@@ -225,18 +250,16 @@ test("collides from the top left", () => {
     translation: createV2(5.5, 6.5),
     scale: createV2(1, 1),
     velocity: downRightV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(4, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the top right", () => {
@@ -244,18 +267,16 @@ test("collides from the top right", () => {
     translation: createV2(6.5, 6.5),
     scale: createV2(1, 1),
     velocity: downLeftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(4, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the bottom right", () => {
@@ -263,18 +284,16 @@ test("collides from the bottom right", () => {
     translation: createV2(6.5, 5.5),
     scale: createV2(1, 1),
     velocity: downLeftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(4, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });
 
 test("collides from the bottom left", () => {
@@ -282,16 +301,14 @@ test("collides from the bottom left", () => {
     translation: createV2(5.5, 5.5),
     scale: createV2(1, 1),
     velocity: downLeftV2(),
+    isColliding: false,
   };
   const target = {
     translation: createV2(6, 6),
     scale: createV2(1, 1),
     velocity: zeroV2(),
+    isColliding: false,
   };
 
-  expect(collides(source)(target)).toEqual({
-    isCollision: true,
-    newTranslation: createV2(4, 6),
-    newVelocity: zeroV2(),
-  });
+  expect(collides(source)(target)).toBeTruthy();
 });

@@ -624,16 +624,9 @@ const drawGameObject = (gl: WebGLRenderingContext, gameObject: GameObject) => {
   const composedMatrix = mat4.create();
   mat4.multiply(composedMatrix, projectionMatrix, modelViewMatrix);
 
-  printMatrix("PROJECTION", projectionMatrix);
-  printMatrix("MODEL", modelViewMatrix);
-  printMatrix("COMPOSED", composedMatrix);
-
-  console.log("POSITIONS", gameObject.positions);
-
   for (const position of positions) {
     const glPosition = vec4.create();
     vec4.transformMat4(glPosition, position, composedMatrix);
-    printVector("GL position", glPosition);
   }
 
   const offset = 0;
@@ -647,9 +640,7 @@ const isSingleColor = <TMultiColor extends Color[]>(
 };
 
 const getGameObjectMaterial = (
-  material: RectangleMaterial,
-  width?: number,
-  height?: number
+  material: RectangleMaterial
 ): GameObjectMaterial => {
   if (material.type === "color") {
     if (isSingleColor(material.color)) {
@@ -763,33 +754,9 @@ const createTriangle =
     return gameObject;
   };
 
-const printPositions = (msg: string, positions: number[]) => {
-  const toPairs = <T>(arr: T[]) => {
-    const pairs = [];
-    let pair = [];
-    for (const pos of positions) {
-      pair.push(pos);
-      if (pair.length === 2) {
-        pairs.push(pair);
-        pair = [];
-      }
-    }
-    return pairs;
-  };
-
-  console.log(msg);
-
-  console.log(
-    toPairs(positions)
-      .map(([x, y]) => `${x},${y}`)
-      .join("; ")
-  );
-};
-
 const createRectangle =
   (
     gl: WebGLRenderingContext,
-    screenSize: vec2,
     colorShaderProgram: ColorShaderProgram,
     textureShaderProgram: TextureShaderProgram,
     gameObjects: GameObject[],
@@ -813,8 +780,7 @@ const createRectangle =
       y,
     ];
 
-    printPositions("POSITIONS", positions);
-    const material = getGameObjectMaterial(rectangleMaterial, width, height);
+    const material = getGameObjectMaterial(rectangleMaterial);
 
     const modelViewMatrix = initializeModelViewMatrix();
     const positionBuffer = initializeBuffer(gl, positions);
@@ -884,7 +850,6 @@ const createRectanglePos =
     positions: number[],
     rectangleMaterial: RectangleMaterial
   ): Transformable2DGameObject => {
-    printPositions("POSITIONS", positions);
     const material = getGameObjectMaterial(rectangleMaterial);
 
     const modelViewMatrix = initializeModelViewMatrix();
@@ -1090,7 +1055,6 @@ const createText =
   ) => {
     const createCharRectangle = createRectangle(
       gl,
-      screenSize,
       colorShaderProgram,
       textureShaderProgram,
       gameObjects,
@@ -1217,64 +1181,9 @@ const scale2D = (value: number, gameObject: Transformable2DGameObject) => {
   );
 };
 
-const printMatrix = (msg: string, matrix: mat4) => {
-  const toCell = (val: number): string => {
-    const str = val.toString();
-    const spacing = 24 - str.length;
-    return str + new Array(spacing).fill(" ").join("");
-  };
-
-  console.log(msg);
-  console.log(
-    toCell(matrix[0]),
-    toCell(matrix[4]),
-    toCell(matrix[8]),
-    toCell(matrix[12])
-  );
-  console.log(
-    toCell(matrix[1]),
-    toCell(matrix[5]),
-    toCell(matrix[9]),
-    toCell(matrix[13])
-  );
-  console.log(
-    toCell(matrix[2]),
-    toCell(matrix[6]),
-    toCell(matrix[10]),
-    toCell(matrix[14])
-  );
-  console.log(
-    toCell(matrix[3]),
-    toCell(matrix[7]),
-    toCell(matrix[11]),
-    toCell(matrix[15])
-  );
-};
-
-const printVector = (msg: string, vector: vec4) => {
-  const toCell = (val: number): string => {
-    const str = val.toString();
-    const spacing = 24 - str.length;
-    return str + new Array(spacing).fill(" ").join("");
-  };
-
-  console.log(msg);
-  console.log(
-    toCell(vector[0]),
-    toCell(vector[1]),
-    toCell(vector[2]),
-    toCell(vector[3])
-  );
-};
-
 const rotate2D = (value: number, gameObject: Transformable2DGameObject) => {
   const modelViewMatrix = gameObject.uniforms.modelViewMatrix.value;
-
-  //printMatrix("MODEL", modelViewMatrix);
-
   mat4.rotateZ(modelViewMatrix, modelViewMatrix, value);
-
-  //printMatrix("MODEL", modelViewMatrix);
 };
 
 const isCanvas = (
@@ -1324,7 +1233,6 @@ export const initializeScene = (
     ),
     createRectangle: createRectangle(
       gl,
-      screenSize,
       colorShaderProgram,
       textureShaderProgram,
       gameObjects,
