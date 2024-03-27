@@ -10,6 +10,7 @@ import * as core from "./v2/core";
 import * as fn from "./v2/utils";
 import * as gameObject from "./v2/gameObject";
 import * as math from "./v2/math";
+import * as physics from "./v2/physics";
 import * as shapes from "./v2/shapes";
 import * as web from "./v2/web";
 
@@ -20,6 +21,7 @@ export const v2 = {
   fn,
   gameObject,
   math,
+  physics,
   shapes,
   web,
 };

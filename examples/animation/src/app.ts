@@ -7,6 +7,7 @@ import {
   YehatScene2D,
   createYehat2DScene,
   currentTime,
+  gameObjects,
   previousTime,
   startGame,
 } from "@yehat/yehat/src/v2/core";
@@ -64,9 +65,9 @@ const gameDataCurrentAngle = gameData.compose(currentAngle);
 const degreesPerSecond =
   Lens.fromProp<HelloWorldGameData>()("degreesPerSecond");
 
-const gameObjects = Lens.fromProp<HelloWorldScene>()("gameObjects");
 const firstGameObject = indexArray<GameObject2D>().index(0);
-const rectangle = gameObjects.composeOptional(firstGameObject);
+const rectangle =
+  gameObjects<HelloWorldScene>().composeOptional(firstGameObject);
 
 const updateScene =
   (_gl: WebGLRenderingContext) =>

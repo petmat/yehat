@@ -6,6 +6,7 @@ import { pipe } from "fp-ts/lib/function";
 import {
   YehatScene2D,
   addKeyListeners,
+  getElapsedTime,
   isKeyDown,
   startGame,
 } from "@yehat/yehat/src/v2/core";
@@ -361,7 +362,7 @@ const updateScene =
 
     newMario = pipe(newMario, velocity.set(newVelocity));
 
-    const elapsedTime = scene.currentTime - scene.previousTime;
+    const elapsedTime = getElapsedTime(scene);
 
     newMario = pipe(
       newMario,

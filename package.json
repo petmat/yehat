@@ -13,7 +13,9 @@
     "start:render-2d-scene": "yarn workspace @yehat/example-render-2d-scene start",
     "start:sprite-animation": "yarn workspace @yehat/example-sprite-animation start",
     "start:keyboard-input": "yarn workspace @yehat/example-keyboard-input start",
+    "start:collision-detection": "yarn workspace @yehat/example-collision-detection start",
     "start:playable-scene": "yarn workspace @yehat/example-playable-scene start",
     "build:yehat": "yarn workspace @yehat/yehat build"
-  }
+  },
+  "dependencies": {}
 }

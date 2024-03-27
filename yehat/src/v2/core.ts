@@ -52,7 +52,7 @@ export const VertexNumComponents2D = 2;
 
 export type KeyboardStateMap = Record<string, boolean>;
 
-export interface YehatScene2D<T> {
+export interface YehatScene2D<T = {}> {
   gameData: T;
   gameObjects: GameObject2D[];
   textures: Map<number, Texture>;
@@ -79,6 +79,12 @@ export interface InitOptions<T> {
   createScene: CreateScene2DFn<T>;
   updateScene: UpdateScene2DFn<T>;
 }
+
+export const getElapsedTime = <T extends YehatScene2D>(scene: T) =>
+  scene.currentTime - scene.previousTime;
+
+export const gameObjects = <T extends YehatScene2D>() =>
+  Lens.fromProp<T>()("gameObjects");
 
 export const previousTime =
   Lens.fromProp<YehatScene2D<unknown>>()("previousTime");
