@@ -15,6 +15,7 @@
     "start:keyboard-input": "yarn workspace @yehat/example-keyboard-input start",
     "start:collision-detection": "yarn workspace @yehat/example-collision-detection start",
     "start:playable-scene": "yarn workspace @yehat/example-playable-scene start",
+    "start:tactical-combat": "yarn workspace @yehat/example-tactical-combat start",
     "build:yehat": "yarn workspace @yehat/yehat build"
   },
   "dependencies": {}
