@@ -230,6 +230,16 @@ export const getTextureCoordsForFrame =
     );
   };
 
+export const updateCharacterTextureCoords = (character: GameObject2D) =>
+  pipe(
+    character,
+    textureCoords.set(
+      getTextureCoordsForFrame(textureFrameGridWidth.get(character))(
+        direction.get(character)
+      )(currentFrame.get(character))
+    )
+  );
+
 // Aspect ratio dependent functions
 
 const calculateAspectRatio = (gl: WebGLRenderingContext) =>
