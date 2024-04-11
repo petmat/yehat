@@ -21,6 +21,13 @@ export const addArray = (b: number[]) => (a: number[]) =>
 export const multiplyArray = (a: number) => (arr: number[]) =>
   pipe(arr, A.map(multiply(a)));
 
+// Tuples
+
+export const addTuple =
+  ([ax, ay]: [x: number, y: number]) =>
+  ([bx, by]: [x: number, y: number]): [x: number, y: number] =>
+    [ax + bx, ay + by];
+
 // 2-dimensional vector
 
 export const createV2 = (x: number, y: number): vec2 => vec2.fromValues(x, y);
