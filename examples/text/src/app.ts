@@ -18,13 +18,16 @@ enum Textures {
   MarioFont,
 }
 
+const chars =
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ- ";
+
 const createMarioFontText =
   (gl: WebGLRenderingContext) =>
   (fontSize: number) =>
   (deltaX: number, deltaY: number) =>
   (text: string) =>
     pipe(
-      createText(gl)(Textures.MarioFont)(text),
+      createText(gl)(Textures.MarioFont)(chars)(16, 128)(text),
       setGroupSize(gl)(fontSize, fontSize),
       A.map(movePosition(gl)(deltaX, deltaY))
     );

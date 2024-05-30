@@ -6,14 +6,17 @@ import { rgb } from "@yehat/yehat/src/v2/colors";
 import { createYehat2DScene, startGame } from "@yehat/yehat/src/v2/core";
 import {
   GameObject2D,
+  Texture,
   addTexture,
   currentFrame,
   emptyTextures,
+  movePosition,
+  setGroupSize,
   setTexture,
   textureFrameGridWidth,
   updateCharacterTextureCoords,
 } from "@yehat/yehat/src/v2/gameObject";
-import { createRectangle } from "@yehat/yehat/src/v2/shapes";
+import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
 import { addTuple } from "@yehat/yehat/src/v2/math";
 
 enum Textures {
@@ -35,7 +38,48 @@ enum Textures {
   BuildingCornerSE,
   BuildingCornerNE,
   BuildingWallS,
+  HudTopLeft,
+  HudTop,
+  HudTopRight,
+  HudTopButton,
+  HudBottomLeft,
+  HudBottomRight,
+  HudBottomTile,
+  CharacterScreen,
+  Font,
+  BigFont,
 }
+
+const textureFileMappings: [index: number, url: string][] = [
+  [Textures.GrassTile, "assets/textures/grass_tile.png"],
+  [Textures.Floor, "assets/textures/floor.png"],
+  [Textures.Grid, "assets/textures/grid.png"],
+  [Textures.Character, "assets/textures/character.png"],
+  [Textures.Box, "assets/textures/box.png"],
+  [Textures.Tree1, "assets/textures/tree_01.png"],
+  [Textures.Tree2, "assets/textures/tree_02.png"],
+  [Textures.Bush1, "assets/textures/bush_01.png"],
+  [Textures.Bush2, "assets/textures/bush_02.png"],
+  [Textures.BuildingWallW, "assets/textures/building_wall_w.png"],
+  [Textures.BuildingWallN, "assets/textures/building_wall_n.png"],
+  [Textures.BuildingWallE, "assets/textures/building_wall_e.png"],
+  [Textures.BuildingDoorE, "assets/textures/building_door_e.png"],
+  [Textures.BuildingCornerSW, "assets/textures/building_corner_sw.png"],
+  [Textures.BuildingCornerNW, "assets/textures/building_corner_nw.png"],
+  [Textures.BuildingCornerSE, "assets/textures/building_corner_se.png"],
+  [Textures.BuildingCornerNE, "assets/textures/building_corner_ne.png"],
+  [Textures.BuildingWallS, "assets/textures/building_wall_s.png"],
+  [Textures.HudTopLeft, "assets/textures/hud_topleft.png"],
+  [Textures.HudTop, "assets/textures/hud_top.png"],
+  [Textures.HudTopRight, "assets/textures/hud_topright.png"],
+  [Textures.HudTopButton, "assets/textures/hud_top_button.png"],
+  [Textures.HudBottomLeft, "assets/textures/hud_bottomleft.png"],
+  [Textures.HudBottomRight, "assets/textures/hud_bottomright.png"],
+  [Textures.HudBottomTile, "assets/textures/hud_bottom_tile.png"],
+  [Textures.CharacterScreen, "assets/textures/character_screen.png"],
+  [Textures.Font, "assets/textures/font.png"],
+  [Textures.BigFont, "assets/textures/big_font.png"],
+];
 
 const createTerrainTile =
   (gl: WebGLRenderingContext) =>
@@ -49,40 +93,17 @@ const createGrassTile = (gl: WebGLRenderingContext) =>
 const createFloorTile = (gl: WebGLRenderingContext) =>
   createTerrainTile(gl)(Textures.Floor);
 
-const createTextures = () =>
-  pipe(
-    emptyTextures(),
-    addTexture(Textures.GrassTile, "assets/textures/grass_tile.png"),
-    addTexture(Textures.Floor, "assets/textures/floor.png"),
-    addTexture(Textures.Grid, "assets/textures/grid.png"),
-    addTexture(Textures.Character, "assets/textures/character.png"),
-    addTexture(Textures.Box, "assets/textures/box.png"),
-    addTexture(Textures.Tree1, "assets/textures/tree_01.png"),
-    addTexture(Textures.Tree2, "assets/textures/tree_02.png"),
-    addTexture(Textures.Bush1, "assets/textures/bush_01.png"),
-    addTexture(Textures.Bush2, "assets/textures/bush_02.png"),
-    addTexture(Textures.BuildingWallW, "assets/textures/building_wall_w.png"),
-    addTexture(Textures.BuildingWallN, "assets/textures/building_wall_n.png"),
-    addTexture(Textures.BuildingWallE, "assets/textures/building_wall_e.png"),
-    addTexture(Textures.BuildingDoorE, "assets/textures/building_door_e.png"),
-    addTexture(
-      Textures.BuildingCornerSW,
-      "assets/textures/building_corner_sw.png",
-    ),
-    addTexture(
-      Textures.BuildingCornerNW,
-      "assets/textures/building_corner_nw.png",
-    ),
-    addTexture(
-      Textures.BuildingCornerSE,
-      "assets/textures/building_corner_se.png",
-    ),
-    addTexture(
-      Textures.BuildingCornerNE,
-      "assets/textures/building_corner_ne.png",
-    ),
-    addTexture(Textures.BuildingWallS, "assets/textures/building_wall_s.png"),
+const addTextureFromArgs = (
+  textures: Map<number, Texture>,
+  [index, url]: [index: number, url: string]
+) => pipe(textures, addTexture(index, url));
+
+const createTextures = () => {
+  return pipe(
+    textureFileMappings,
+    A.reduce(emptyTextures(), addTextureFromArgs)
   );
+};
 
 const createTerrain = (gl: WebGLRenderingContext): GameObject2D[] => {
   return pipe(
@@ -90,8 +111,8 @@ const createTerrain = (gl: WebGLRenderingContext): GameObject2D[] => {
     A.flatMap((i) =>
       pipe(
         NEA.range(0, 15),
-        A.map((j) => createGrassTile(gl)([i * 32 + 16, j * 28 - 6])),
-      ),
+        A.map((j) => createGrassTile(gl)([i * 32 + 16, j * 28 - 6]))
+      )
     ),
     pipe(
       pipe(
@@ -99,12 +120,12 @@ const createTerrain = (gl: WebGLRenderingContext): GameObject2D[] => {
         A.flatMap((i) =>
           pipe(
             NEA.range(6, 10),
-            A.map((j) => createFloorTile(gl)([i * 32 + 16, j * 28 - 6])),
-          ),
-        ),
+            A.map((j) => createFloorTile(gl)([i * 32 + 16, j * 28 - 6]))
+          )
+        )
       ),
-      A.concat,
-    ),
+      A.concat
+    )
   );
 };
 
@@ -117,9 +138,9 @@ const createGrid = (gl: WebGLRenderingContext) =>
     A.flatMap((i) =>
       pipe(
         NEA.range(0, 15),
-        A.map((j) => createGridTile(gl)([i * 32 + 16, j * 28 - 6])),
-      ),
-    ),
+        A.map((j) => createGridTile(gl)([i * 32 + 16, j * 28 - 4]))
+      )
+    )
   );
 
 const createCharacter =
@@ -131,47 +152,61 @@ const createCharacter =
       setTexture(Textures.Character),
       currentFrame.set(frame),
       textureFrameGridWidth.set(4),
-      updateCharacterTextureCoords,
+      updateCharacterTextureCoords
     );
 
-const createObj1x1 =
+const createSizedRectangle =
   (gl: WebGLRenderingContext) =>
-  (texture: number) =>
-  (position: [x: number, y: number]) =>
-    pipe(createRectangle(gl)(position, [32, 32]), setTexture(texture));
+  (
+    size: [width: number, height: number]
+  ): ((position: [x: number, y: number]) => GameObject2D) =>
+  (position) =>
+    pipe(createRectangle(gl)(position, size));
 
-const createObj1x2 =
+const createGridObj =
+  ([gw, gh]: [gw: number, gh: number]) =>
   (gl: WebGLRenderingContext) =>
   (texture: number) =>
   (position: [x: number, y: number]) =>
-    pipe(createRectangle(gl)(position, [32, 64]), setTexture(texture));
+    pipe(
+      createSizedRectangle(gl)([gw * 32, gh * 32])(position),
+      setTexture(texture)
+    );
 
-const createObj2x2 =
-  (gl: WebGLRenderingContext) =>
-  (texture: number) =>
-  (position: [x: number, y: number]) =>
-    pipe(createRectangle(gl)(position, [64, 64]), setTexture(texture));
+const createObj1x1 = createGridObj([1, 1]);
 
-const createObj2x1 =
-  (gl: WebGLRenderingContext) =>
-  (texture: number) =>
-  (position: [x: number, y: number]) =>
-    pipe(createRectangle(gl)(position, [64, 32]), setTexture(texture));
+const createObj1x2 = createGridObj([1, 2]);
+
+const createObj2x2 = createGridObj([2, 2]);
+
+const createObj2x1 = createGridObj([2, 1]);
+
+const createObj4x1 = createGridObj([4, 1]);
+
+const createObj4x2 = createGridObj([4, 2]);
+
+const createObj4x4 = createGridObj([4, 4]);
+
+const createObj16x1 = createGridObj([16, 1]);
 
 const getGridPos =
-  ([width, height]: [width: number, height: number]) =>
-  ([gx, gy]: [gx: number, gy: number]): [x: number, y: number] => [
-    32 * gx + width / 2,
-    28 * gy + height / 2 + 6,
-  ];
+  ([gw, gh]: [gw: number, gh: number]) =>
+  ([gx, gy]: [gx: number, gy: number]): [x: number, y: number] =>
+    [32 * gx + (gw * 32) / 2, 28 * gy + (gh * 32) / 2 + 8];
 
-const get1x1GridPos = getGridPos([32, 32]);
+const get1x1GridPos = getGridPos([1, 1]);
 
-const get1x2GridPos = getGridPos([32, 64]);
+const get1x2GridPos = getGridPos([1, 2]);
 
-const get2x1GridPos = getGridPos([64, 32]);
+const get2x1GridPos = getGridPos([2, 1]);
 
-const get2x2GridPos = getGridPos([64, 64]);
+const get2x2GridPos = getGridPos([2, 2]);
+
+const get4x1GridPos = getGridPos([4, 1]);
+
+const get4x4GridPos = getGridPos([4, 4]);
+
+const get16x1GridPos = getGridPos([16, 1]);
 
 const createCharacters = (gl: WebGLRenderingContext) => [
   createCharacter(gl)(get2x2GridPos([10, 11]))(1),
@@ -239,6 +274,45 @@ const createFoliage = (gl: WebGLRenderingContext) => [
   createObj2x2(gl)(Textures.Tree2)(get2x2GridPos([11, 0])),
 ];
 
+const createGameText =
+  (gl: WebGLRenderingContext) =>
+  (fontSize: number) =>
+  (deltaX: number, deltaY: number) =>
+  (text: string) =>
+    pipe(
+      createText(gl)(Textures.Font)("0123456789/")(8, 128)(text),
+      setGroupSize(gl)(fontSize, fontSize),
+      A.map(movePosition(gl)(deltaX, deltaY))
+    );
+
+const createHud = (gl: WebGLRenderingContext) => [
+  createObj4x1(gl)(Textures.HudTopLeft)(get4x1GridPos([0, 13])),
+  createObj16x1(gl)(Textures.HudTop)(get16x1GridPos([3, 13])),
+  createObj4x1(gl)(Textures.HudTopButton)([162, 388]),
+  createObj4x1(gl)(Textures.HudTopButton)([236, 388]),
+  createObj4x1(gl)(Textures.HudTopButton)([310, 388]),
+  createObj4x1(gl)(Textures.HudTopButton)([384, 388]),
+  createObj4x1(gl)(Textures.HudTopButton)([458, 388]),
+  createObj4x1(gl)(Textures.HudTopButton)([532, 388]),
+  createObj4x1(gl)(Textures.HudTopRight)(get4x1GridPos([17, 13])),
+  createObj4x2(gl)(Textures.HudBottomLeft)([64, 32]),
+  createObj4x2(gl)(Textures.HudBottomRight)([608, 32]),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([0, 10])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([0, 7])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([0, 4])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([0, 1])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([17, 10])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([17, 7])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([17, 4])),
+  createObj4x4(gl)(Textures.CharacterScreen)(get4x4GridPos([17, 1])),
+  createObj4x2(gl)(Textures.HudBottomTile)([160, 32]),
+  createObj4x2(gl)(Textures.HudBottomTile)([250, 32]),
+  createObj4x2(gl)(Textures.HudBottomTile)([340, 32]),
+  createObj4x2(gl)(Textures.HudBottomTile)([430, 32]),
+  createObj4x2(gl)(Textures.HudBottomTile)([520, 32]),
+  ...createGameText(gl)(64)(200, 200)("0000"),
+];
+
 const createScene = (gl: WebGLRenderingContext) =>
   createYehat2DScene(gl)({
     clearColor: rgb(127, 149, 255),
@@ -247,12 +321,13 @@ const createScene = (gl: WebGLRenderingContext) =>
     textures: createTextures(),
     gameObjects: pipe(
       createTerrain(gl),
-      //A.concat(createGrid(gl)),
       A.concat(createCharacters(gl)),
       A.concat(createItems(gl)),
       A.concat(createBgFoliage(gl)),
       A.concat(createBuilding(gl)),
       A.concat(createFoliage(gl)),
+      A.concat(createHud(gl)),
+      A.concat(createGrid(gl))
     ),
   });
 

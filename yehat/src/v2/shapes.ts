@@ -15,6 +15,7 @@ import {
   vertices,
 } from "./gameObject";
 import { createV2 } from "./math";
+import { getIndexOfCharInString } from "./utils";
 
 // Rectangle
 
@@ -102,41 +103,55 @@ export const createCircle =
 
 // Text
 
-const chars = pipe(
-  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ- ".split(""),
-  chunksOf(8),
-  reverse,
-  flatten
-);
+const getIndexOfChar =
+  (chars: string) => (charsInRow: number) => (char: string) => {
+    const temp1 = chars.split("");
+    const temp2 = chunksOf(charsInRow)(temp1);
+    const temp4 = flatten(temp2);
+    console.log("wert", temp4);
+    //const str = pipe(chars.split(""), chunksOf(charsInRow), reverse, flatten);
+    return pipe(char, getIndexOfCharInString(temp4.join("")));
+  };
 
-const calculateXOffset = (char: string): number =>
-  (chars.indexOf(char) % 8) / 8;
+const calculateXOffset =
+  (chars: string) =>
+  (charsInRow: number) =>
+  (char: string): number =>
+    (getIndexOfChar(chars)(charsInRow)(char) % charsInRow) / charsInRow;
 
-const calculateYOffset = (char: string): number =>
-  Math.floor(chars.indexOf(char) / 8) / 8;
+const calculateYOffset =
+  (chars: string) =>
+  (charsInRow: number) =>
+  (char: string): number =>
+    Math.floor(chars.indexOf(char) / charsInRow) / charsInRow;
 
 const calculateTextTextureCoord =
-  (scale: number) =>
-  (char: string): Float32Array =>
-    new Float32Array(
+  (chars: string) =>
+  (charWidth: number, textureWidth: number) =>
+  (char: string): Float32Array => {
+    const scale = charWidth / textureWidth;
+    return new Float32Array(
       [
-        [0, 1 * scale],
-        [1 * scale, 1 * scale],
-        [1 * scale, 0],
-        [0, 1 * scale],
-        [1 * scale, 0],
+        [0, scale],
+        [scale, scale],
+        [scale, 0],
+        [0, scale],
+        [scale, 0],
         [0, 0],
       ]
         .map(([x, y]) => [
-          x + calculateXOffset(char),
-          y + calculateYOffset(char),
+          x + calculateXOffset(chars)(textureWidth / charWidth)(char),
+          y + calculateYOffset(chars)(textureWidth / charWidth)(char),
         ])
         .flat()
     );
+  };
 
 export const createText =
   (gl: WebGLRenderingContext) =>
   (texture: number) =>
+  (chars: string) =>
+  (charWidth: number, textureWidth: number) =>
   (text: string): GameObject2D[] =>
     Array.from(text).map((char, index) =>
       pipe(
@@ -145,6 +160,10 @@ export const createText =
         pipe(createV2(-1 + index, -1), translation.set),
         pipe(getRectangleDrawMode(), drawMode.set),
         pipe(texture, setTexture),
-        pipe(char, pipe(16 / 128, calculateTextTextureCoord), setTextureCoords)
+        pipe(
+          char,
+          calculateTextTextureCoord(chars)(charWidth, textureWidth),
+          setTextureCoords
+        )
       )
     );

@@ -117,7 +117,7 @@ const createMarioText =
   (deltaX: number, deltaY: number) =>
   (text: string) =>
     pipe(
-      createText(gl)(Textures.MarioFont)(text),
+      createText(gl)(Textures.MarioFont)(16 / 128)(text),
       setGroupSize(gl)(fontSize, fontSize),
       A.map(movePosition(gl)(deltaX, deltaY))
     );

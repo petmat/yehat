@@ -1,6 +1,8 @@
 import * as E from "fp-ts/lib/Either";
-import * as TE from "fp-ts/lib/TaskEither";
 import { Either } from "fp-ts/lib/Either";
+import * as O from "fp-ts/lib/Option";
+import { Option } from "fp-ts/lib/Option";
+import * as TE from "fp-ts/lib/TaskEither";
 import { pipe } from "fp-ts/lib/function";
 import { vec2 } from "gl-matrix";
 
@@ -78,3 +80,8 @@ export const v2ToString = (v: vec2) => `[${v[0]}, ${1}]`;
 export const toFloat32Array = (arr: number[]) => new Float32Array(arr);
 
 export const wrap = (max: number) => (v: number) => v > max ? 0 : v;
+
+export const getIndexOfCharInString =
+  (str: string) =>
+  (char: string): number =>
+    str.indexOf(char);
