@@ -353,7 +353,7 @@ export const drawScene = <T>(scene: YehatScene2D<T>) => {
           uTexture,
           gameObject.texture._tag === "Some" ? gameObject.texture.value : 0
         );
-        gl.uniform4fv(uColor, gameObject.isColliding ? redColor : whiteColor);
+        gl.uniform4fv(uColor, gameObject.color);
 
         const aVertexPosition = gl.getAttribLocation(
           program,

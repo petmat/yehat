@@ -16,7 +16,11 @@ import {
   textureFrameGridWidth,
   updateCharacterTextureCoords,
 } from "@yehat/yehat/src/v2/gameObject";
-import { createRectangle, createText } from "@yehat/yehat/src/v2/shapes";
+import {
+  createDropShadow,
+  createRectangle,
+  createText,
+} from "@yehat/yehat/src/v2/shapes";
 import { addTuple } from "@yehat/yehat/src/v2/math";
 
 enum Textures {
@@ -48,6 +52,9 @@ enum Textures {
   CharacterScreen,
   Font,
   BigFont,
+  FontFinal,
+  FontNumbers,
+  Slash,
 }
 
 const textureFileMappings: [index: number, url: string][] = [
@@ -79,6 +86,9 @@ const textureFileMappings: [index: number, url: string][] = [
   [Textures.CharacterScreen, "assets/textures/character_screen.png"],
   [Textures.Font, "assets/textures/font.png"],
   [Textures.BigFont, "assets/textures/big_font.png"],
+  [Textures.FontFinal, "assets/textures/font_final.png"],
+  [Textures.FontNumbers, "assets/textures/font_numbers.png"],
+  [Textures.Slash, "assets/textures/slash.png"],
 ];
 
 const createTerrainTile =
@@ -274,15 +284,25 @@ const createFoliage = (gl: WebGLRenderingContext) => [
   createObj2x2(gl)(Textures.Tree2)(get2x2GridPos([11, 0])),
 ];
 
-const createGameText =
+const createNumberText =
   (gl: WebGLRenderingContext) =>
-  (fontSize: number) =>
   (deltaX: number, deltaY: number) =>
   (text: string) =>
     pipe(
-      createText(gl)(Textures.Font)("0123456789/")(8, 128)(text),
-      setGroupSize(gl)(fontSize, fontSize),
-      A.map(movePosition(gl)(deltaX, deltaY))
+      createText(gl)(Textures.FontNumbers)("0123456789")(4, 8, 32)(text),
+      setGroupSize(gl)(8, 16),
+      A.map(movePosition(gl)(deltaX, deltaY)),
+      A.flatMap(createDropShadow(gl)(2, -2))
+    );
+
+const createSlash =
+  (gl: WebGLRenderingContext) =>
+  (texture: number) =>
+  (position: [x: number, y: number]): GameObject2D[] =>
+    pipe(
+      createSizedRectangle(gl)([16, 16])(position),
+      setTexture(texture),
+      createDropShadow(gl)(0, -2)
     );
 
 const createHud = (gl: WebGLRenderingContext) => [
@@ -310,7 +330,9 @@ const createHud = (gl: WebGLRenderingContext) => [
   createObj4x2(gl)(Textures.HudBottomTile)([340, 32]),
   createObj4x2(gl)(Textures.HudBottomTile)([430, 32]),
   createObj4x2(gl)(Textures.HudBottomTile)([520, 32]),
-  ...createGameText(gl)(64)(200, 200)("0000"),
+  ...createNumberText(gl)(40, 388)("1"),
+  ...createSlash(gl)(Textures.Slash)([52, 386]),
+  ...createNumberText(gl)(62, 388)("79"),
 ];
 
 const createScene = (gl: WebGLRenderingContext) =>

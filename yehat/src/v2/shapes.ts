@@ -5,12 +5,17 @@ import { range } from "fp-ts/lib/NonEmptyArray";
 import {
   DrawMode,
   GameObject2D,
+  color,
   createDefaultGameObject,
   drawMode,
+  movePosition,
+  scale,
   setPosition,
   setSize,
   setTexture,
   setTextureCoords,
+  texture,
+  textureCoords,
   translation,
   vertices,
 } from "./gameObject";
@@ -103,46 +108,49 @@ export const createCircle =
 
 // Text
 
-const getIndexOfChar =
-  (chars: string) => (charsInRow: number) => (char: string) => {
-    const temp1 = chars.split("");
-    const temp2 = chunksOf(charsInRow)(temp1);
-    const temp4 = flatten(temp2);
-    console.log("wert", temp4);
-    //const str = pipe(chars.split(""), chunksOf(charsInRow), reverse, flatten);
-    return pipe(char, getIndexOfCharInString(temp4.join("")));
-  };
+export const getIndexOfChar = (chars: string) => (char: string) => {
+  return pipe(char, getIndexOfCharInString(chars));
+};
 
-const calculateXOffset =
+export const calculateXOffset =
   (chars: string) =>
-  (charsInRow: number) =>
+  (textureSize: number, charWidth: number) =>
   (char: string): number =>
-    (getIndexOfChar(chars)(charsInRow)(char) % charsInRow) / charsInRow;
+    (getIndexOfChar(chars)(char) % (textureSize / charWidth)) /
+    (textureSize / charWidth);
 
-const calculateYOffset =
+export const calculateYOffset =
   (chars: string) =>
-  (charsInRow: number) =>
+  (textureSize: number, charWidth: number, charHeight: number) =>
   (char: string): number =>
-    Math.floor(chars.indexOf(char) / charsInRow) / charsInRow;
+    1 -
+    (Math.floor(getIndexOfChar(chars)(char) / (textureSize / charWidth)) + 1) /
+      (textureSize / charHeight);
 
 const calculateTextTextureCoord =
   (chars: string) =>
-  (charWidth: number, textureWidth: number) =>
+  (charWidth: number, charHeight: number, textureSize: number) =>
   (char: string): Float32Array => {
-    const scale = charWidth / textureWidth;
+    const xScale = charWidth / textureSize;
+    const yScale = charHeight / textureSize;
+
     return new Float32Array(
       [
-        [0, scale],
-        [scale, scale],
-        [scale, 0],
-        [0, scale],
-        [scale, 0],
+        [0, yScale],
+        [xScale, yScale],
+        [xScale, 0],
+        [0, yScale],
+        [xScale, 0],
         [0, 0],
       ]
-        .map(([x, y]) => [
-          x + calculateXOffset(chars)(textureWidth / charWidth)(char),
-          y + calculateYOffset(chars)(textureWidth / charWidth)(char),
-        ])
+        .map(([x, y]) => {
+          const craxzy = [
+            x + calculateXOffset(chars)(textureSize, charWidth)(char),
+            y +
+              calculateYOffset(chars)(textureSize, charWidth, charHeight)(char),
+          ];
+          return craxzy;
+        })
         .flat()
     );
   };
@@ -151,7 +159,7 @@ export const createText =
   (gl: WebGLRenderingContext) =>
   (texture: number) =>
   (chars: string) =>
-  (charWidth: number, textureWidth: number) =>
+  (charWidth: number, charHeight: number, textureSize: number) =>
   (text: string): GameObject2D[] =>
     Array.from(text).map((char, index) =>
       pipe(
@@ -162,8 +170,28 @@ export const createText =
         pipe(texture, setTexture),
         pipe(
           char,
-          calculateTextTextureCoord(chars)(charWidth, textureWidth),
+          calculateTextTextureCoord(chars)(charWidth, charHeight, textureSize),
           setTextureCoords
         )
       )
     );
+
+// Effects
+
+export const createDropShadow =
+  (gl: WebGLRenderingContext) =>
+  (deltaX: number, deltaY: number) =>
+  (gameObj: GameObject2D): GameObject2D[] => {
+    const shadow = pipe(
+      createDefaultGameObject(gl)(),
+      pipe(createRectangleShape(), vertices.set),
+      pipe(getRectangleDrawMode(), drawMode.set),
+      textureCoords.set(gameObj.textureCoords),
+      translation.set(gameObj.translation),
+      movePosition(gl)(deltaX, deltaY),
+      scale.set(gameObj.scale),
+      texture.set(gameObj.texture),
+      color.set([0, 0, 0, 1])
+    );
+    return [shadow, gameObj];
+  };
