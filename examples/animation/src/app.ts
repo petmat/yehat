@@ -1,96 +1,72 @@
-import { pipe } from "fp-ts/lib/function";
-import { vec2 } from "gl-matrix";
-import { Lens } from "monocle-ts";
-import { indexArray } from "monocle-ts/lib/Index/Array";
+import { Effect, Option, pipe } from "effect";
 
 import {
-  YehatScene2D,
-  createYehat2DScene,
-  currentTime,
-  gameObjects,
-  previousTime,
-  startGame,
-} from "@yehat/yehat/src/v2/core";
-import { createRectangle } from "@yehat/yehat/src/v2/shapes";
+  GameObject,
+  Radian,
+  Vector2,
+  Vector4,
+  WglGameScene,
+  Yehat,
+  YehatGlobal,
+  WglRenderingContext,
+  Rectangle,
+} from "@yehat/yehat/src/v3";
 
-import { GameObject2D, color, rotation } from "@yehat/yehat/src/v2/gameObject";
-import { green } from "@yehat/yehat/src/v2/colors";
-
-interface HelloWorldGameData {
+interface GameScene {
+  bgColor: Vector4.Vector4;
   currentAngle: number;
-  degreesPerSecond: number;
+  degreesPerMs: number;
+  previousMs: Option.Option<number>;
+  textures: Map<number, string>;
+  gameObjects: GameObject.GameObject[];
 }
 
-type HelloWorldScene = YehatScene2D<HelloWorldGameData>;
+type AnimationWglGameScene = WglGameScene.WglGameScene<GameScene>;
 
-const createScene = (gl: WebGLRenderingContext): HelloWorldScene =>
-  createYehat2DScene(gl)({
-    gameData: {
-      currentAngle: 0.0,
-      degreesPerSecond: 90,
-    },
-    gameObjects: [
-      pipe(createRectangle(gl)([320, 240], [200, 200]), color.set(green)),
-    ],
-  });
-
-const angleToRadians = (angle: number): number => (angle * Math.PI) / 180.0;
-
-const radiansToRotation = (radians: number): vec2 =>
-  vec2.fromValues(Math.sin(radians), Math.cos(radians));
-
-const calculateDeltaAngle =
-  (previousTime: number, currentTime: number) =>
-  (degreesPerSecond: number): number =>
-    ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
-
-const incrementAngle =
-  (angle: number) =>
-  (deltaAngle: number): number =>
-    (angle + deltaAngle) % 360;
-
-const calculateNewAngle = (scene: HelloWorldScene) =>
-  pipe(
-    gameData.compose(degreesPerSecond).get(scene),
-    calculateDeltaAngle(previousTime.get(scene), currentTime.get(scene)),
-    incrementAngle(gameDataCurrentAngle.get(scene))
-  );
-
-const gameData = Lens.fromProp<HelloWorldScene>()("gameData");
-
-const currentAngle = Lens.fromProp<HelloWorldGameData>()("currentAngle");
-
-const gameDataCurrentAngle = gameData.compose(currentAngle);
-
-const degreesPerSecond =
-  Lens.fromProp<HelloWorldGameData>()("degreesPerSecond");
-
-const firstGameObject = indexArray<GameObject2D>().index(0);
-const rectangle =
-  gameObjects<HelloWorldScene>().composeOptional(firstGameObject);
+const createScene = (): GameScene => ({
+  bgColor: Vector4.make(0, 0, 0, 1),
+  currentAngle: 0,
+  degreesPerMs: 90 / 1000,
+  previousMs: Option.none<number>(),
+  textures: new Map(),
+  gameObjects: [
+    pipe(
+      Rectangle.create(Vector2.make(200, 200)),
+      GameObject.setPosition(Vector2.make(220, 140)),
+      GameObject.setColor(Vector4.make(0, 1, 0, 1))
+    ),
+  ],
+});
 
 const updateScene =
-  (_gl: WebGLRenderingContext) =>
-  (scene: HelloWorldScene): HelloWorldScene =>
+  (currentMs: number) =>
+  (scene: AnimationWglGameScene): AnimationWglGameScene =>
     pipe(
-      scene,
-      gameDataCurrentAngle.set(pipe(scene, calculateNewAngle)),
-      rectangle
-        .composeLens(rotation)
-        .set(
-          pipe(
-            gameDataCurrentAngle.get(scene),
-            angleToRadians,
-            radiansToRotation
-          )
-        )
+      scene.previousMs,
+      Option.map((previousMs) => currentMs - previousMs),
+      Option.getOrElse(() => 0),
+      (elapsedMs) => elapsedMs * scene.degreesPerMs,
+      (deltaAngle) => (scene.currentAngle + deltaAngle) % 360,
+      (newAngle) => ({
+        ...scene,
+        previousMs: Option.some(currentMs),
+        currentAngle: newAngle,
+        gameObjects: scene.gameObjects.map((gameObject) => ({
+          ...gameObject,
+          rotation: pipe(newAngle, Radian.fromDegrees, Vector2.fromRadians),
+        })),
+      })
     );
 
-const initOptions = {
-  window,
-  canvasId: "#glcanvas",
-  createScene,
-  updateScene,
-};
+const app = pipe(
+  document,
+  WglRenderingContext.fromCanvasWithId("glcanvas"),
+  Effect.flatMap(Yehat.runGame(createScene)(updateScene)(Yehat.renderScene))
+);
 
-pipe(initOptions, startGame);
+pipe(
+  window,
+  YehatGlobal.addEventListener("load", () =>
+    Effect.runPromise(app).catch(console.error)
+  )
+);
