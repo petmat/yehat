@@ -1,29 +1,50 @@
-import { identity, pipe } from "fp-ts/lib/function";
+import { Effect, pipe } from "effect";
 
 import {
-  YehatScene2D,
-  createYehat2DScene,
-  startGame,
-} from "@yehat/yehat/src/v2/core";
-import { createRectangle } from "@yehat/yehat/src/v2/shapes";
-import { green } from "@yehat/yehat/src/v2/colors";
-import { color } from "@yehat/yehat/src/v2/gameObject";
+  GameObject,
+  Rectangle,
+  Vector2,
+  Vector4,
+  WglGameScene,
+  WglRenderingContext,
+  Yehat,
+  YehatGlobal,
+} from "@yehat/yehat/src/v3";
 
-const createScene = (gl: WebGLRenderingContext): YehatScene2D<{}> =>
-  createYehat2DScene(gl)({
-    gameData: {},
-    gameObjects: [
-      pipe(createRectangle(gl)([320, 240], [200, 200]), color.set(green)),
-    ],
-  });
+interface GameScene {
+  bgColor: Vector4.Vector4;
+  textures: Map<number, string>;
+  gameObjects: GameObject.GameObject[];
+}
 
-const updateScene = (_gl: WebGLRenderingContext) => identity<YehatScene2D<{}>>;
+type HelloWorldWglGameScene = WglGameScene.WglGameScene<GameScene>;
 
-const initOptions = {
+const createScene = (): GameScene => ({
+  bgColor: Vector4.make(0, 0, 0, 1),
+  textures: new Map(),
+  gameObjects: [
+    pipe(
+      Rectangle.create(Vector2.make(200, 200)),
+      GameObject.setPosition(Vector2.make(220, 140)),
+      GameObject.setColor(Vector4.make(0, 1, 0, 1))
+    ),
+  ],
+});
+
+const updateScene =
+  (_currentMs: number) =>
+  (scene: HelloWorldWglGameScene): HelloWorldWglGameScene =>
+    scene;
+
+const app = pipe(
+  document,
+  WglRenderingContext.fromCanvasWithId("glcanvas"),
+  Effect.flatMap(Yehat.runGame(createScene)(updateScene)(Yehat.renderScene))
+);
+
+pipe(
   window,
-  canvasId: "#glcanvas",
-  createScene,
-  updateScene,
-};
-
-pipe(initOptions, startGame);
+  YehatGlobal.addEventListener("load", () =>
+    Effect.runPromise(app).catch(console.error)
+  )
+);
