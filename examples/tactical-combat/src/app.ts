@@ -3,11 +3,7 @@ import * as A from "fp-ts/lib/Array";
 import * as NEA from "fp-ts/lib/NonEmptyArray";
 
 import { rgb } from "@yehat/yehat/src/v2/colors";
-import {
-  createYehat2DScene,
-  gameObjects,
-  startGame,
-} from "@yehat/yehat/src/v2/core";
+import { createYehat2DScene, startGame } from "@yehat/yehat/src/v2/core";
 import {
   GameObject2D,
   Texture,
@@ -518,4 +514,8 @@ const initOptions = {
   updateScene,
 };
 
+document.getElementsByTagName("canvas")[0].style.cursor =
+  "url('assets/textures/cursor.png'), auto";
+
+console.log(document.getElementsByTagName("canvas")[0].style.cursor);
 pipe(initOptions, startGame);
