@@ -1,96 +1,91 @@
-import { pipe } from "fp-ts/lib/function";
-import { vec2 } from "gl-matrix";
-import { Lens } from "monocle-ts";
-import { indexArray } from "monocle-ts/lib/Index/Array";
+import { Cause, Console, Effect, Exit, Option, pipe } from "effect";
 
 import {
-  YehatScene2D,
-  createYehat2DScene,
-  currentTime,
-  gameObjects,
-  previousTime,
-  startGame,
-} from "@yehat/yehat/src/v2/core";
-import { createRectangle } from "@yehat/yehat/src/v2/shapes";
+  Canvas,
+  Document,
+  GameObject,
+  YehatGlobal,
+  Vector2,
+  Vector4,
+  Radian,
+  Yehat,
+} from "@yehat/yehat/src/v3";
 
-import { GameObject2D, color, rotation } from "@yehat/yehat/src/v2/gameObject";
-import { green } from "@yehat/yehat/src/v2/colors";
-
-interface HelloWorldGameData {
+interface Model {
+  bgColor: Vector4.Vector4;
   currentAngle: number;
-  degreesPerSecond: number;
+  degreesPerMs: number;
+  previousTimestamp: Option.Option<number>;
+  gameObjects: GameObject.GameObject[];
 }
 
-type HelloWorldScene = YehatScene2D<HelloWorldGameData>;
-
-const createScene = (gl: WebGLRenderingContext): HelloWorldScene =>
-  createYehat2DScene(gl)({
-    gameData: {
-      currentAngle: 0.0,
-      degreesPerSecond: 90,
+const createModel = (): Model => ({
+  bgColor: Vector4.make(0, 0, 0, 1),
+  currentAngle: 0,
+  degreesPerMs: 90 / 1000,
+  previousTimestamp: Option.none<number>(),
+  gameObjects: [
+    {
+      color: Vector4.make(0, 1, 0, 1),
+      translation: Vector2.make(0, 0),
+      rotation: Vector2.make(0, 1),
+      scale: Vector2.make(0.3125, 0.3125 * (640 / 480)),
+      vertexCoordinates: [-1, 1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1],
+      hasTexture: false,
+      texture: 0,
     },
-    gameObjects: [
-      pipe(createRectangle(gl)([320, 240], [200, 200]), color.set(green)),
-    ],
-  });
+  ],
+});
 
-const angleToRadians = (angle: number): number => (angle * Math.PI) / 180.0;
-
-const radiansToRotation = (radians: number): vec2 =>
-  vec2.fromValues(Math.sin(radians), Math.cos(radians));
-
-const calculateDeltaAngle =
-  (previousTime: number, currentTime: number) =>
-  (degreesPerSecond: number): number =>
-    ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
-
-const incrementAngle =
-  (angle: number) =>
-  (deltaAngle: number): number =>
-    (angle + deltaAngle) % 360;
-
-const calculateNewAngle = (scene: HelloWorldScene) =>
-  pipe(
-    gameData.compose(degreesPerSecond).get(scene),
-    calculateDeltaAngle(previousTime.get(scene), currentTime.get(scene)),
-    incrementAngle(gameDataCurrentAngle.get(scene))
-  );
-
-const gameData = Lens.fromProp<HelloWorldScene>()("gameData");
-
-const currentAngle = Lens.fromProp<HelloWorldGameData>()("currentAngle");
-
-const gameDataCurrentAngle = gameData.compose(currentAngle);
-
-const degreesPerSecond =
-  Lens.fromProp<HelloWorldGameData>()("degreesPerSecond");
-
-const firstGameObject = indexArray<GameObject2D>().index(0);
-const rectangle =
-  gameObjects<HelloWorldScene>().composeOptional(firstGameObject);
-
-const updateScene =
-  (_gl: WebGLRenderingContext) =>
-  (scene: HelloWorldScene): HelloWorldScene =>
+const updateModel =
+  (timestamp: number) =>
+  (model: Yehat.WebGLModel<Model>): Yehat.WebGLModel<Model> =>
     pipe(
-      scene,
-      gameDataCurrentAngle.set(pipe(scene, calculateNewAngle)),
-      rectangle
-        .composeLens(rotation)
-        .set(
-          pipe(
-            gameDataCurrentAngle.get(scene),
-            angleToRadians,
-            radiansToRotation
-          )
-        )
+      model.previousTimestamp,
+      Option.getOrElse(() => timestamp),
+      (previousTimestamp) => timestamp - previousTimestamp,
+      (timespan) => timespan * model.degreesPerMs,
+      (deltaAngle) => (model.currentAngle + deltaAngle) % 360,
+      (newAngle) => ({
+        ...model,
+        previousTimestamp: Option.some(timestamp),
+        currentAngle: newAngle,
+        gameObjects: model.gameObjects.map((gameObject) => ({
+          ...gameObject,
+          rotation: pipe(newAngle, Radian.fromDegrees, Vector2.fromRadians),
+        })),
+      })
     );
 
-const initOptions = {
-  window,
-  canvasId: "#glcanvas",
-  createScene,
-  updateScene,
+const app = Effect.gen(function* () {
+  const exit = yield* Effect.exit(
+    Document.getElementById<HTMLCanvasElement>("glcanvas")(document).pipe(
+      Effect.flatMap(Canvas.getContext("webgl")),
+      Effect.flatMap(Yehat.initializeGame),
+      Effect.flatMap(Yehat.startGame(updateModel)(createModel()))
+    )
+  );
+
+  if (Exit.isFailure(exit)) {
+    if (
+      Cause.isDieType(exit.cause) &&
+      Cause.isRuntimeException(exit.cause.defect)
+    ) {
+      yield* Console.error(`Runtime exception: ${exit.cause.defect.message}`);
+    } else {
+      yield* Console.error(`Unknown error: ${exit.cause}`);
+    }
+  }
+});
+
+const handleWindowLoad = () => {
+  Effect.runPromiseExit(app).then((exit) => {
+    if (Exit.isSuccess(exit)) {
+      console.log("Application ended");
+    } else {
+      console.error("Failure");
+    }
+  });
 };
 
-pipe(initOptions, startGame);
+pipe(window, YehatGlobal.addEventListener("load", handleWindowLoad));
