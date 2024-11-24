@@ -25,3 +25,5 @@ export const v2 = {
   shapes,
   web,
 };
+
+export * as v3 from "./v3";
