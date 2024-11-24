@@ -1,5 +1,4 @@
 import { pipe } from "fp-ts/lib/function";
-import { chunksOf, flatten, reverse } from "fp-ts/lib/Array";
 import { range } from "fp-ts/lib/NonEmptyArray";
 
 import {
@@ -30,7 +29,7 @@ export const createRectangleShape = () =>
 export const getRectangleDrawMode = () => DrawMode.Triangles;
 
 export const createRectangleTextureCoords = () =>
-  new Float32Array([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0]);
+  new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]);
 
 export const createRectangle =
   (gl: WebGLRenderingContext) =>

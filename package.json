@@ -18,5 +18,11 @@
     "start:tactical-combat": "yarn workspace @yehat/example-tactical-combat start",
     "build:yehat": "yarn workspace @yehat/yehat build"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "process": "^0.11.10"
+  },
+  "resolutions": {
+    "nan": "2.18.0"
+  }
 }

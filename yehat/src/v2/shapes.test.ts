@@ -24,7 +24,11 @@ test("calculateYOffset returns correct offset for the first char", () => {
   const textureWidth = 128;
   const charWidth = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("0");
+  const charHeight = 16;
+
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "0"
+  );
 
   expect(result).toBe(0.875);
 });
@@ -43,8 +47,11 @@ test("calculateYOffset returns correct offset for a char in the first row", () =
   const chars = "0123456789ABCDEF";
   const textureWidth = 128;
   const charWidth = 16;
+  const charHeight = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("3");
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "3"
+  );
 
   expect(result).toBe(0.875);
 });
@@ -63,8 +70,11 @@ test("calculateYOffset returns correct offset for the last char in the first row
   const chars = "0123456789ABCDEF";
   const textureWidth = 128;
   const charWidth = 16;
+  const charHeight = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("7");
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "7"
+  );
 
   expect(result).toBe(0.875);
 });
@@ -83,8 +93,11 @@ test("calculateYOffset returns correct offset for the first char in the second r
   const chars = "0123456789ABCDEF";
   const textureWidth = 128;
   const charWidth = 16;
+  const charHeight = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("8");
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "8"
+  );
 
   expect(result).toBe(0.75);
 });
@@ -103,8 +116,11 @@ test("calculateYOffset returns correct offset for a char in the second row", () 
   const chars = "0123456789ABCDEF";
   const textureWidth = 128;
   const charWidth = 16;
+  const charHeight = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("D");
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "D"
+  );
 
   expect(result).toBe(0.75);
 });
@@ -123,8 +139,11 @@ test("calculateYOffset returns correct offset for the last char in the second ro
   const chars = "0123456789ABCDEF";
   const textureWidth = 128;
   const charWidth = 16;
+  const charHeight = 16;
 
-  const result = calculateYOffset(chars)(textureWidth, charWidth)("F");
+  const result = calculateYOffset(chars)(textureWidth, charWidth, charHeight)(
+    "F"
+  );
 
   expect(result).toBe(0.75);
 });
