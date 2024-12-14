@@ -21,5 +21,8 @@
   "dependencies": {},
   "devDependencies": {
     "process": "^0.11.10"
+  },
+  "resolutions": {
+    "nan": "2.18.0"
   }
 }
