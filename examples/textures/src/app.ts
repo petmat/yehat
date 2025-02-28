@@ -1,16 +1,15 @@
-import { identity, pipe } from "fp-ts/lib/function";
+import { Effect, Option, pipe } from "effect";
 
 import {
-  createYehat2DScene,
-  startGame,
-  YehatScene2D,
-} from "@yehat/yehat/src/v2/core";
-import {
-  addTexture,
-  emptyTextures,
-  setTexture,
-} from "@yehat/yehat/src/v2/gameObject";
-import { createRectangle } from "@yehat/yehat/src/v2/shapes";
+  GameObject,
+  Rectangle,
+  Vector2,
+  Vector4,
+  WglGameScene,
+  WglRenderingContext,
+  Yehat,
+  YehatGlobal,
+} from "@yehat/yehat/src/v3";
 
 enum Textures {
   Wood,
@@ -18,35 +17,54 @@ enum Textures {
   Joy,
 }
 
-const createSize100Rectangle =
-  (gl: WebGLRenderingContext) =>
-  (position: [x: number, y: number]) =>
-  (texture: Textures) =>
-    pipe(createRectangle(gl)(position, [100, 100]), setTexture(texture));
+interface GameScene {
+  bgColor: Vector4.Vector4;
+  textures: Map<number, string>;
+  gameObjects: GameObject.GameObject[];
+}
 
-const createScene = (gl: WebGLRenderingContext): YehatScene2D<{}> =>
-  createYehat2DScene(gl)({
-    gameData: {},
-    textures: pipe(
-      emptyTextures(),
-      addTexture(Textures.Wood, "assets/textures/wood_0.png"),
-      addTexture(Textures.Square, "assets/textures/brick_2.png"),
-      addTexture(Textures.Joy, "assets/textures/joy.png")
+type AnimationWglGameScene = WglGameScene.WglGameScene<GameScene>;
+
+const createScene = (): GameScene => ({
+  bgColor: Vector4.make(0, 0, 0, 1),
+  textures: new Map([
+    [Textures.Wood, "assets/textures/wood_0.png"],
+    [Textures.Square, "assets/textures/brick_2.png"],
+    [Textures.Joy, "assets/textures/joy.png"],
+  ]),
+  gameObjects: [
+    pipe(
+      Rectangle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(160, 240)),
+      GameObject.setTexture(Option.some(Textures.Wood))
     ),
-    gameObjects: [
-      createSize100Rectangle(gl)([160, 240])(Textures.Wood),
-      createSize100Rectangle(gl)([320, 240])(Textures.Square),
-      createSize100Rectangle(gl)([480, 240])(Textures.Joy),
-    ],
-  });
+    pipe(
+      Rectangle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(320, 240)),
+      GameObject.setTexture(Option.some(Textures.Square))
+    ),
+    pipe(
+      Rectangle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(480, 240)),
+      GameObject.setTexture(Option.some(Textures.Joy))
+    ),
+  ],
+});
 
-const updateScene = (_gl: WebGLRenderingContext) => identity<YehatScene2D<{}>>;
+const updateScene =
+  (_currentMs: number) =>
+  (scene: AnimationWglGameScene): AnimationWglGameScene =>
+    scene;
 
-const initOptions = {
+const app = pipe(
+  document,
+  WglRenderingContext.fromCanvasWithId("glcanvas"),
+  Effect.flatMap(Yehat.runGame(createScene)(updateScene)(Yehat.renderScene))
+);
+
+pipe(
   window,
-  canvasId: "#glcanvas",
-  createScene,
-  updateScene,
-};
-
-pipe(initOptions, startGame);
+  YehatGlobal.addEventListener("load", () =>
+    Effect.runPromise(app).catch(console.error)
+  )
+);
