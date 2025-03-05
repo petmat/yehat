@@ -1,91 +1,62 @@
-import { identity, pipe } from "fp-ts/lib/function";
-import { vec4 } from "gl-matrix";
+import { Effect, pipe } from "effect";
 
 import {
-  YehatScene2D,
-  createYehat2DScene,
-  startGame,
-} from "@yehat/yehat/src/v2/core";
-import {
-  createCircleShape,
-  createTriangleShape,
-  getCircleDrawMode,
-  createCircleTextureCoords,
-  getTriangleDrawMode,
-  createTriangleTextureCoords,
-  createRectangleShape,
-  getRectangleDrawMode,
-  createRectangleTextureCoords,
-} from "@yehat/yehat/src/v2/shapes";
-import {
-  getAspectRatioCoreFns,
-  color,
-  drawMode,
-  setTextureCoords,
-  vertices,
-  DrawMode,
-} from "@yehat/yehat/src/v2/gameObject";
-import { red, green, blue } from "@yehat/yehat/src/v2/colors";
+  Circle,
+  GameObject,
+  Rectangle,
+  Triangle,
+  Vector2,
+  Vector4,
+  WglGameScene,
+  WglRenderingContext,
+  Yehat,
+  YehatGlobal,
+} from "@yehat/yehat/src/v3";
 
-type HelloWorldScene = YehatScene2D<{}>;
+interface GameScene {
+  bgColor: Vector4.Vector4;
+  textures: Map<number, string>;
+  gameObjects: GameObject.GameObject[];
+}
 
-const createScene = (gl: WebGLRenderingContext): HelloWorldScene => {
-  const { createDefaultGameObject, setPosition, setSize } =
-    getAspectRatioCoreFns(gl);
+type HelloWorldWglGameScene = WglGameScene.WglGameScene<GameScene>;
 
-  const createSize100GameObject =
-    (
-      verticesVal: Float32Array,
-      drawModeVal: DrawMode,
-      textureCoordsVal: Float32Array
-    ) =>
-    (x: number, y: number) =>
-    (colorVal: vec4) =>
-      pipe(
-        createDefaultGameObject(),
-        setSize(100, 100),
-        setPosition(x, y),
-        color.set(colorVal),
-        vertices.set(verticesVal),
-        drawMode.set(drawModeVal),
-        setTextureCoords(textureCoordsVal)
-      );
+const createScene = (): GameScene => ({
+  bgColor: Vector4.make(0, 0, 0, 1),
+  textures: new Map(),
+  gameObjects: [
+    pipe(
+      Circle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(160, 240)),
+      GameObject.setColor(Vector4.make(1, 0, 0, 1))
+    ),
+    pipe(
+      Triangle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(320, 240)),
+      GameObject.setColor(Vector4.make(0, 1, 0, 1))
+    ),
+    pipe(
+      Rectangle.create(Vector2.make(100, 100)),
+      GameObject.setPosition(Vector2.make(480, 240)),
+      GameObject.setColor(Vector4.make(0, 0, 1, 1))
+    ),
+  ],
+});
 
-  const createSize100Circle = createSize100GameObject(
-    createCircleShape(),
-    getCircleDrawMode(),
-    createCircleTextureCoords()
-  );
+const updateScene =
+  (_currentMs: number) =>
+  (scene: HelloWorldWglGameScene): HelloWorldWglGameScene =>
+    scene;
 
-  const createSize100Rectangle = createSize100GameObject(
-    createRectangleShape(),
-    getRectangleDrawMode(),
-    createRectangleTextureCoords()
-  );
+const app = pipe(
+  document,
+  WglRenderingContext.fromCanvasWithId("glcanvas"),
+  Effect.flatMap(Yehat.runGame(createScene)(updateScene)(Yehat.renderScene))
+);
 
-  const createSize100Triangle = createSize100GameObject(
-    createTriangleShape(),
-    getTriangleDrawMode(),
-    createTriangleTextureCoords()
-  );
-
-  return createYehat2DScene(gl)({
-    gameData: {},
-    gameObjects: [
-      createSize100Circle(160, 240)(red),
-      createSize100Triangle(320, 240)(green),
-      createSize100Rectangle(480, 240)(blue),
-    ],
-  });
-};
-
-const updateScene = (_gl: WebGLRenderingContext) => identity<YehatScene2D<{}>>;
-
-const initOptions = {
+pipe(
   window,
-  canvasId: "#glcanvas",
-  createScene,
-  updateScene,
-};
-
-pipe(initOptions, startGame);
+  YehatGlobal.addEventListener("load", () =>
+    Effect.runPromise(app).catch(console.error)
+  )
+);

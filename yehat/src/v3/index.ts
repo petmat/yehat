@@ -1,7 +1,9 @@
+export * as Circle from "./Circle";
 export * as GameObject from "./GameObject";
 export * as GameObjectContext from "./GameObjectContext";
 export * as Radian from "./Radian";
 export * as Rectangle from "./Rectangle";
+export * as Triangle from "./Triangle";
 export * as UtilityTypes from "./UtilityTypes";
 export * as Vector2 from "./Vector2";
 export * as Vector4 from "./Vector4";

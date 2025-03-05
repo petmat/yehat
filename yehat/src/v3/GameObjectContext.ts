@@ -92,7 +92,7 @@ export const enableTextureCoordinateArray = (context: GameObjectContext) =>
 
 export const drawArrays = (context: GameObjectContext) =>
   WglRenderingContext.drawArrays({
-    mode: WebGLRenderingContext.TRIANGLES,
+    mode: context.gameObject.drawMode,
     first: 0,
     count: context.gameObject.vertexCoordinates.length / 2,
   })(context.gl).pipe(Effect.map(() => context));

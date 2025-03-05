@@ -10,6 +10,7 @@ export type GameObjectKeysByValue<T extends GameObject[keyof GameObject]> =
 export type GameObjectValues = GameObject[keyof GameObject];
 
 export interface GameObject {
+  drawMode: GLenum;
   color: Vector4.Vector4;
   position: Vector2.Vector2;
   rotation: Vector2.Vector2;
